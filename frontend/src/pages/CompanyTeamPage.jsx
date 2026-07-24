@@ -1,0 +1,160 @@
+import { useEffect, useState } from 'react';
+import { companyPortalApi } from '../api/client';
+import { useAuth } from '../context/AuthContext';
+
+const empty = { name: '', email: '', password: '' };
+
+export default function CompanyTeamPage() {
+  const { user } = useAuth('company');
+  const isAdmin = user?.role === 'company_admin';
+  const [team, setTeam] = useState([]);
+  const [form, setForm] = useState(empty);
+  const [showForm, setShowForm] = useState(false);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    const data = await companyPortalApi.team();
+    setTeam(data.team);
+  }
+
+  useEffect(() => {
+    load().catch((err) => setError(err.message));
+  }, []);
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      await companyPortalApi.addMember(form);
+      setForm(empty);
+      setShowForm(false);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleStatus(member) {
+    try {
+      await companyPortalApi.setMemberStatus(member.id, !member.is_active);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  return (
+    <div className="page">
+      <header className="page-head">
+        <div>
+          <p className="eyebrow">People</p>
+          <h1>Team</h1>
+        </div>
+        {isAdmin && (
+          <button type="button" className="primary-btn" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Close form' : '+ Add salesperson'}
+          </button>
+        )}
+      </header>
+
+      {isAdmin && (
+        <div className="mobile-cta-row mobile-only">
+          <button type="button" className="primary-btn" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Close form' : '+ Add salesperson'}
+          </button>
+        </div>
+      )}
+
+      {error && <div className="alert">{error}</div>}
+
+      {showForm && isAdmin && (
+        <form className="panel form-grid" onSubmit={handleCreate}>
+          <h2>New salesperson</h2>
+          <label>
+            Name
+            <input
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              required
+            />
+          </label>
+          <label>
+            Email
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              required
+            />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              value={form.password}
+              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+              required
+              minLength={6}
+            />
+          </label>
+          <div className="full form-actions">
+            <button type="submit" className="primary-btn" disabled={busy}>
+              {busy ? 'Creating…' : 'Create salesperson'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      <article className="panel">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Status</th>
+              {isAdmin && <th>Action</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {team.map((member) => (
+              <tr key={member.id}>
+                <td>
+                  <strong>{member.name}</strong>
+                  <small>{member.email}</small>
+                </td>
+                <td>{member.role === 'company_admin' ? 'Admin' : 'Salesperson'}</td>
+                <td>
+                  <span className={`badge badge-${member.is_active ? 'active' : 'cancelled'}`}>
+                    {member.is_active ? 'active' : 'inactive'}
+                  </span>
+                </td>
+                {isAdmin && (
+                  <td>
+                    {member.role === 'salesperson' ? (
+                      <button type="button" className="ghost-btn" onClick={() => toggleStatus(member)}>
+                        {member.is_active ? 'Deactivate' : 'Activate'}
+                      </button>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                )}
+              </tr>
+            ))}
+            {team.length === 0 && (
+              <tr>
+                <td colSpan={isAdmin ? 4 : 3} className="muted">
+                  No team members yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </article>
+    </div>
+  );
+}
