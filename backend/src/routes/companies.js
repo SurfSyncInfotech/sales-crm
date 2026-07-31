@@ -258,6 +258,68 @@ router.patch('/:id/status', async (req, res) => {
   }
 });
 
+router.post('/:id/extend-trial', async (req, res) => {
+  try {
+    const { days = 7 } = req.body;
+    const [companies] = await pool.query('SELECT * FROM companies WHERE id = ?', [req.params.id]);
+    const company = companies[0];
+    if (!company) return res.status(404).json({ message: 'Company not found' });
+
+    const currentEnd = company.subscription_end ? new Date(company.subscription_end) : new Date();
+    const base = currentEnd > new Date() ? currentEnd : new Date();
+    base.setDate(base.getDate() + Number(days));
+    const newEnd = base.toISOString().slice(0, 10);
+
+    const extended = (company.trial_extended_days || 0) + Number(days);
+
+    await pool.query(
+      `UPDATE companies SET
+         subscription_end = ?,
+         trial_extended_days = ?,
+         status = 'trial'
+       WHERE id = ?`,
+      [newEnd, extended, req.params.id]
+    );
+
+    await pool.query(
+      `INSERT INTO company_activity_logs (company_id, action, details, performed_by)
+       VALUES (?, 'trial_extended', ?, ?)`,
+      [req.params.id, `Trial extended by ${days} days (total extended: ${extended} days). New end: ${newEnd}`, req.user.id]
+    );
+
+    res.json({ message: 'Trial extended', subscription_end: newEnd, trial_extended_days: extended });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to extend trial' });
+  }
+});
+
+router.post('/:id/expire-trial', async (req, res) => {
+  try {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const pastDate = yesterday.toISOString().slice(0, 10);
+
+    await pool.query(
+      `UPDATE companies SET
+         subscription_end = ?
+       WHERE id = ?`,
+      [pastDate, req.params.id]
+    );
+
+    await pool.query(
+      `INSERT INTO company_activity_logs (company_id, action, details, performed_by)
+       VALUES (?, 'trial_expired_manually', ?, ?)`,
+      [req.params.id, `Trial expired manually. End date set to ${pastDate}`, req.user.id]
+    );
+
+    res.json({ message: 'Trial expired', subscription_end: pastDate });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to expire trial' });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   try {
     await pool.query('UPDATE companies SET status = ? WHERE id = ?', ['cancelled', req.params.id]);

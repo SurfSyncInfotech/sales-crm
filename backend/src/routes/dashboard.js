@@ -15,7 +15,11 @@ router.get('/overview', async (_req, res) => {
         (SELECT COUNT(*) FROM companies WHERE status = 'trial') AS trial_companies,
         (SELECT COUNT(*) FROM companies WHERE status = 'suspended') AS suspended_companies,
         (SELECT COUNT(*) FROM users WHERE role = 'company_admin') AS company_admins,
-        (SELECT COUNT(*) FROM users WHERE role = 'salesperson') AS salespersons
+        (SELECT COUNT(*) FROM users WHERE role = 'salesperson') AS salespersons,
+        (SELECT COUNT(*) FROM subscription_plans) AS total_plans,
+        (SELECT COUNT(*) FROM payments WHERE status = 'pending') AS pending_invoices,
+        (SELECT COUNT(*) FROM payments WHERE status = 'paid') AS paid_invoices,
+        (SELECT COUNT(*) FROM companies WHERE status = 'trial' AND subscription_end < CURRENT_DATE()) AS expired_trials
     `);
 
     const [[revenue]] = await pool.query(`
@@ -77,6 +81,24 @@ router.get('/overview', async (_req, res) => {
       WHERE c.status = 'active'
     `);
 
+    const [expiringTrials] = await pool.query(`
+      SELECT id, name, subscription_end,
+             DATEDIFF(subscription_end, CURRENT_DATE()) AS days_left
+      FROM companies
+      WHERE status = 'trial' AND subscription_end >= CURRENT_DATE()
+      ORDER BY subscription_end ASC
+      LIMIT 8
+    `);
+
+    const [newCompaniesMonthly] = await pool.query(`
+      SELECT DATE_FORMAT(created_at, '%b %y') AS month,
+             COUNT(*) AS company_count
+      FROM companies
+      WHERE created_at >= DATE_SUB(CURRENT_DATE(), INTERVAL 5 MONTH)
+      GROUP BY DATE_FORMAT(created_at, '%Y-%m'), DATE_FORMAT(created_at, '%b %y')
+      ORDER BY DATE_FORMAT(created_at, '%Y-%m') ASC
+    `);
+
     res.json({
       counts,
       revenue: { ...revenue, mrr: mrr.mrr },
@@ -84,6 +106,8 @@ router.get('/overview', async (_req, res) => {
       byPlan,
       recentCompanies,
       recentPayments,
+      expiringTrials,
+      newCompaniesMonthly,
     });
   } catch (err) {
     console.error(err);

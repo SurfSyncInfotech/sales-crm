@@ -75,7 +75,6 @@ function buildConnectUrl({ companyId, userId }) {
     state,
     scope: [
       'public_profile',
-      'email',
       'pages_show_list',
       'pages_manage_metadata',
       'pages_read_engagement',
@@ -134,8 +133,8 @@ async function exchangeLongLivedToken(shortLivedToken) {
 }
 
 async function fetchFacebookUser(accessToken) {
-  const data = await graphGet('/me', accessToken, { fields: 'id,name,email' });
-  return { id: String(data.id), name: data.name || null, email: data.email || null };
+  const data = await graphGet('/me', accessToken, { fields: 'id,name' });
+  return { id: String(data.id), name: data.name || null, email: null };
 }
 
 async function fetchBusinesses(accessToken) {

@@ -89,7 +89,7 @@ export default function RevenuePage() {
               <tr key={p.id}>
                 <td>{p.invoice_number}</td>
                 <td>{p.company_name}</td>
-                <td>{p.plan_name || '—'}</td>
+                <td>{p.plan_name || 'Trial'}</td>
                 <td>{money(p.amount)}</td>
                 <td>{p.billing_cycle}</td>
                 <td>

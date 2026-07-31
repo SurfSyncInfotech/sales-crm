@@ -70,6 +70,10 @@ export const companiesApi = {
   update: (id, body) => api(`/companies/${id}`, { method: 'PUT', body, portal: 'superadmin' }),
   setStatus: (id, status) =>
     api(`/companies/${id}/status`, { method: 'PATCH', body: { status }, portal: 'superadmin' }),
+  extendTrial: (id, days) =>
+    api(`/companies/${id}/extend-trial`, { method: 'POST', body: { days }, portal: 'superadmin' }),
+  expireTrial: (id) =>
+    api(`/companies/${id}/expire-trial`, { method: 'POST', portal: 'superadmin' }),
 };
 
 export const plansApi = {
@@ -82,6 +86,8 @@ export const paymentsApi = {
   list: (companyId) =>
     api(companyId ? `/payments?company_id=${companyId}` : '/payments', { portal: 'superadmin' }),
   create: (body) => api('/payments', { method: 'POST', body, portal: 'superadmin' }),
+  delete: (id) => api(`/payments/${id}`, { method: 'DELETE', portal: 'superadmin' }),
+  markPaid: (id) => api(`/payments/${id}/status`, { method: 'PATCH', body: { status: 'paid' }, portal: 'superadmin' }),
 };
 
 export const companyPortalApi = {
@@ -143,4 +149,7 @@ export const companyPortalApi = {
   createLead: (body) => api('/company/leads', { method: 'POST', body, portal: 'company' }),
   updateLead: (id, body) => api(`/company/leads/${id}`, { method: 'PATCH', body, portal: 'company' }),
   uploadLeads: (body) => api('/company/leads/upload', { method: 'POST', body, portal: 'company' }),
+  getUrls: (sourceId) => api(`/company/leads/urls${sourceId ? `?source_id=${sourceId}` : ''}`, { portal: 'company' }),
+  addUrl: (body) => api('/company/leads/urls', { method: 'POST', body, portal: 'company' }),
+  deleteUrl: (id) => api(`/company/leads/urls/${id}`, { method: 'DELETE', portal: 'company' }),
 };

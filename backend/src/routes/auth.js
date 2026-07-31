@@ -32,6 +32,7 @@ function publicUser(user, company = null) {
           name: company.name,
           status: company.status,
           plan_name: company.plan_name || null,
+          pending_invoice: company.pending_invoice || null,
         }
       : null,
   };
@@ -55,7 +56,19 @@ async function getCompanySummary(companyId) {
      WHERE c.id = ? LIMIT 1`,
     [companyId]
   );
-  return rows[0] || null;
+  const company = rows[0];
+  if (!company) return null;
+
+  const [pending] = await pool.query(
+    `SELECT pay.*, pl.name AS plan_name
+     FROM payments pay
+     LEFT JOIN subscription_plans pl ON pl.id = pay.plan_id
+     WHERE pay.company_id = ? AND pay.status = 'pending'
+     ORDER BY pay.due_date ASC, pay.id ASC LIMIT 1`,
+    [companyId]
+  );
+  company.pending_invoice = pending[0] || null;
+  return company;
 }
 
 router.post('/login', async (req, res) => {
@@ -85,7 +98,7 @@ router.post('/login', async (req, res) => {
       if (!company) {
         return res.status(403).json({ message: 'No company linked to this account' });
       }
-      if (['suspended', 'cancelled'].includes(company.status)) {
+      if (['suspended', 'cancelled'].includes(company.status) && !company.pending_invoice) {
         return res.status(403).json({ message: `Company is ${company.status}. Contact SurfSync support.` });
       }
 
@@ -146,7 +159,13 @@ router.get('/company-portal/:slug', async (req, res) => {
       return res.status(404).json({ message: 'Company portal not found' });
     }
 
-    if (['suspended', 'cancelled'].includes(company.status)) {
+    const [pending] = await pool.query(
+      `SELECT id FROM payments WHERE company_id = ? AND status = 'pending' LIMIT 1`,
+      [company.id]
+    );
+    const hasPendingInvoice = pending.length > 0;
+
+    if (['suspended', 'cancelled'].includes(company.status) && !hasPendingInvoice) {
       return res.status(403).json({ message: `Company is ${company.status}` });
     }
 

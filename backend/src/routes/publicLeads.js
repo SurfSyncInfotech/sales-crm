@@ -152,7 +152,9 @@ router.post(
       overrides: {
         campaign:
           payload.campaign ||
-          (integration.source_slug === 'landing-pages' ? 'Landing Page' : 'Website Form'),
+          (integration.custom_url
+            ? `${integration.source_slug === 'landing-pages' ? 'Landing Page' : 'Website Form'} (${integration.custom_url})`
+            : (integration.source_slug === 'landing-pages' ? 'Landing Page' : 'Website Form')),
       },
     });
 

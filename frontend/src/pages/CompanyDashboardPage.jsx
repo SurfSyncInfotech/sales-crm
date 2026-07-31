@@ -59,7 +59,7 @@ export default function CompanyDashboardPage() {
         <article className="stat-card accent">
           <span>Status</span>
           <strong style={{ textTransform: 'capitalize' }}>{company.status}</strong>
-          <small>{company.plan_name || 'No plan assigned'}</small>
+          <small>{company.plan_name || 'Trial'}</small>
         </article>
         <article className="stat-card">
           <span>Salespersons</span>
@@ -106,7 +106,7 @@ export default function CompanyDashboardPage() {
           </div>
           <div>
             <span>Plan</span>
-            <strong>{company.plan_name || 'Unassigned'}</strong>
+            <strong>{company.plan_name || 'Trial'}</strong>
           </div>
         </div>
       </section>

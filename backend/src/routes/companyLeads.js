@@ -742,4 +742,88 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
+router.get('/urls', async (req, res) => {
+  try {
+    const companyId = req.user.company_id;
+    const sourceId = req.query.source_id ? Number(req.query.source_id) : null;
+
+    let query = 'SELECT * FROM company_form_urls WHERE company_id = ?';
+    const params = [companyId];
+
+    if (sourceId) {
+      query += ' AND source_id = ?';
+      params.push(sourceId);
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const [rows] = await pool.query(query, params);
+    res.json({ urls: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to fetch registered URLs' });
+  }
+});
+
+router.post('/urls', async (req, res) => {
+  try {
+    if (req.user.role !== 'company_admin') {
+      return res.status(403).json({ message: 'Only company admins can manage integrations' });
+    }
+    const companyId = req.user.company_id;
+    const { url, source_id } = req.body;
+
+    if (!url || !source_id) {
+      return res.status(400).json({ message: 'URL and source_id are required' });
+    }
+
+    const webhookKey = crypto.randomBytes(16).toString('hex');
+
+    await pool.query(
+      `INSERT INTO company_form_urls (company_id, source_id, url, webhook_key)
+       VALUES (?, ?, ?, ?)`,
+      [companyId, Number(source_id), url.trim(), webhookKey]
+    );
+
+    const [rows] = await pool.query(
+      'SELECT * FROM company_form_urls WHERE company_id = ? AND webhook_key = ? LIMIT 1',
+      [companyId, webhookKey]
+    );
+
+    res.status(201).json({ url: rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to register URL' });
+  }
+});
+
+router.delete('/urls/:id', async (req, res) => {
+  try {
+    if (req.user.role !== 'company_admin') {
+      return res.status(403).json({ message: 'Only company admins can manage integrations' });
+    }
+    const companyId = req.user.company_id;
+    const urlId = Number(req.params.id);
+
+    const [existing] = await pool.query(
+      'SELECT * FROM company_form_urls WHERE id = ? AND company_id = ? LIMIT 1',
+      [urlId, companyId]
+    );
+
+    if (!existing[0]) {
+      return res.status(404).json({ message: 'URL not found' });
+    }
+
+    await pool.query(
+      'DELETE FROM company_form_urls WHERE id = ? AND company_id = ?',
+      [urlId, companyId]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to delete URL' });
+  }
+});
+
 module.exports = router;

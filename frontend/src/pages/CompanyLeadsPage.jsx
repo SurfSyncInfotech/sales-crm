@@ -34,6 +34,7 @@ function formatDate(value) {
 export default function CompanyLeadsPage() {
   const { user } = useAuth('company');
   const isAdmin = user?.role === 'company_admin';
+  const PUBLIC_API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '') + '/public/leads';
 
   const [sources, setSources] = useState([]);
   const [team, setTeam] = useState([]);
@@ -59,6 +60,51 @@ export default function CompanyLeadsPage() {
   const [fbSelectedPages, setFbSelectedPages] = useState([]);
   const [fbSelectedAds, setFbSelectedAds] = useState([]);
   const [fbSelectedForms, setFbSelectedForms] = useState([]);
+
+  const [registeredUrls, setRegisteredUrls] = useState([]);
+  const [newUrls, setNewUrlInput] = useState({});
+
+  async function loadRegisteredUrls() {
+    try {
+      const data = await companyPortalApi.getUrls();
+      setRegisteredUrls(data.urls || []);
+    } catch (err) {
+      console.error('Failed to load registered URLs:', err.message);
+    }
+  }
+
+  async function handleAddUrl(sourceId) {
+    const urlText = (newUrls[sourceId] || '').trim();
+    if (!urlText) return;
+
+    setBusy(true);
+    setError('');
+    try {
+      await companyPortalApi.addUrl({ url: urlText, source_id: sourceId });
+      setNewUrlInput((prev) => ({ ...prev, [sourceId]: '' }));
+      await loadRegisteredUrls();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteUrl(urlId) {
+    if (!window.confirm('Are you sure you want to delete this registered URL? Forms on this URL will no longer be captured.')) {
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      await companyPortalApi.deleteUrl(urlId);
+      await loadRegisteredUrls();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function loadSources() {
     const data = await companyPortalApi.leadSources();
@@ -114,7 +160,7 @@ export default function CompanyLeadsPage() {
   }
 
   useEffect(() => {
-    Promise.all([loadSources(), loadTeam(), loadLeads(1), loadFacebookConnections()]).catch((err) =>
+    Promise.all([loadSources(), loadTeam(), loadLeads(1), loadFacebookConnections(), loadRegisteredUrls()]).catch((err) =>
       setError(err.message)
     );
 
@@ -226,9 +272,17 @@ export default function CompanyLeadsPage() {
     }
   }
 
-  async function copyText(text) {
+  const [copiedKey, setCopiedKey] = useState(null);
+
+  async function copyText(text, key) {
     try {
       await navigator.clipboard.writeText(text);
+      if (key) {
+        setCopiedKey(key);
+        setTimeout(() => {
+          setCopiedKey(null);
+        }, 1500);
+      }
     } catch {
       // ignore
     }
@@ -768,65 +822,174 @@ export default function CompanyLeadsPage() {
                       )}
 
                       {isForm && (
-                        <>
-                          {capture.capture_page && (
-                            <a
-                              className={`primary-btn ${enabled ? '' : 'is-disabled-link'}`}
-                              href={enabled ? capture.capture_page : undefined}
-                              target="_blank"
-                              rel="noreferrer"
-                              aria-disabled={!enabled}
-                              onClick={(e) => {
-                                if (!enabled) e.preventDefault();
-                              }}
+                        <div style={{ marginTop: '12px' }}>
+                          {/* 1. Register a new URL Form */}
+                          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                            <input
+                              type="url"
+                              value={newUrls[source.id] || ''}
+                              onChange={(e) =>
+                                setNewUrlInput((prev) => ({ ...prev, [source.id]: e.target.value }))
+                              }
+                              placeholder={
+                                source.slug === 'landing-pages'
+                                  ? 'Enter Landing Page URL (e.g. https://my-landing-page.com)'
+                                  : 'Enter Website Form URL (e.g. https://mysite.com/contact)'
+                              }
+                              disabled={!enabled || busy}
+                              className="gov-input"
+                              style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--gray-300)', borderRadius: '6px' }}
+                            />
+                            <button
+                              type="button"
+                              className="gov-btn gov-btn-primary"
+                              disabled={!enabled || busy || !(newUrls[source.id] || '').trim()}
+                              onClick={() => handleAddUrl(source.id)}
                             >
-                              Open capture page
-                            </a>
-                          )}
+                              Add URL
+                            </button>
+                          </div>
 
-                          {capture.endpoints?.form_post && (
-                            <>
-                              <div className="lead-endpoint-row">
-                                <div>
-                                  <span>form_post</span>
-                                  <code>{capture.endpoints.form_post}</code>
-                                </div>
-                                <button
-                                  type="button"
-                                  className="gov-btn"
-                                  disabled={!enabled}
-                                  onClick={() => copyText(capture.endpoints.form_post)}
-                                >
-                                  Copy
-                                </button>
-                              </div>
-                              <div className="lead-endpoint-row">
-                                <div>
-                                  <span>HTML form action</span>
-                                  <code>{`<form method="POST" action="${capture.endpoints.form_post}">...</form>`}</code>
-                                </div>
-                                <button
-                                  type="button"
-                                  className="gov-btn"
-                                  disabled={!enabled}
-                                  onClick={() =>
-                                    copyText(
-                                      `<form method="POST" action="${capture.endpoints.form_post}">...</form>`
-                                    )
-                                  }
-                                >
-                                  Copy
-                                </button>
-                              </div>
-                            </>
-                          )}
-                        </>
+                          {/* 2. List of registered URLs */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {registeredUrls
+                              .filter((u) => Number(u.source_id) === Number(source.id))
+                              .map((u) => {
+                                const webhookUrl = `${PUBLIC_API_BASE}/form/${u.webhook_key}`;
+                                return (
+                                  <div
+                                    key={u.id}
+                                    style={{
+                                      padding: '12px',
+                                      backgroundColor: 'var(--gray-50)',
+                                      border: '1px solid var(--gray-200)',
+                                      borderRadius: '6px',
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        marginBottom: '8px',
+                                      }}
+                                    >
+                                      <strong style={{ fontSize: '14px', color: 'var(--gray-900)' }}>
+                                        {u.url}
+                                      </strong>
+                                      <button
+                                        type="button"
+                                        style={{
+                                          color: 'var(--red-600)',
+                                          border: 'none',
+                                          background: 'none',
+                                          cursor: 'pointer',
+                                          fontSize: '13px',
+                                        }}
+                                        disabled={busy}
+                                        onClick={() => handleDeleteUrl(u.id)}
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                    <div className="lead-endpoint-row" style={{ margin: 0 }}>
+                                      <div>
+                                        <span>form_post</span>
+                                        <code>{webhookUrl}</code>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        className="gov-btn"
+                                        onClick={() => copyText(webhookUrl, `webhook-${u.id}`)}
+                                      >
+                                        {copiedKey === `webhook-${u.id}` ? '✓ Copied!' : 'Copy Webhook'}
+                                      </button>
+                                    </div>
+                                    <div className="lead-endpoint-row" style={{ marginTop: '8px', marginBottom: 0 }}>
+                                      <div>
+                                        <span>HTML form action</span>
+                                        <code>{`<form method="POST" action="${webhookUrl}">...</form>`}</code>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        className="gov-btn"
+                                        onClick={() =>
+                                          copyText(`<form method="POST" action="${webhookUrl}">...</form>`, `code-${u.id}`)
+                                        }
+                                      >
+                                        {copiedKey === `code-${u.id}` ? '✓ Copied!' : 'Copy Code'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                            {registeredUrls.filter((u) => Number(u.source_id) === Number(source.id))
+                              .length === 0 && (
+                              <p className="muted" style={{ fontSize: '13px', textAlign: 'center', margin: '8px 0' }}>
+                                No URLs registered yet. Add your landing page or form URL above to start.
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       )}
 
                       {!isFacebook && !isExcel && !isForm && (
-                        <p className="muted lead-one-tap-note">
-                          {enabled ? 'Connected — receiving leads when enabled.' : 'Enable to start receiving leads.'}
-                        </p>
+                        <>
+                          <p className="muted lead-one-tap-note">
+                            {enabled ? 'Connected — receiving leads when enabled.' : 'Enable to start receiving leads.'}
+                          </p>
+                          {enabled && capture.endpoints?.webhook_post && (
+                            <div style={{ marginTop: '12px' }}>
+                              <div className="lead-endpoint-row">
+                                <div>
+                                  <span>Webhook URL</span>
+                                  <code>{capture.endpoints.webhook_post}</code>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="gov-btn"
+                                  onClick={() => copyText(capture.endpoints.webhook_post, `webhook-post-${source.id}`)}
+                                >
+                                  {copiedKey === `webhook-post-${source.id}` ? '✓ Copied!' : 'Copy'}
+                                </button>
+                              </div>
+
+                              {source.slug === 'google-ads' && (
+                                <p className="muted" style={{ fontSize: '12px', marginTop: '6px' }}>
+                                  Paste this Webhook URL into your Google Ads Lead Form webhook settings.
+                                </p>
+                              )}
+
+                              {source.slug === 'whatsapp' && (
+                                <div style={{ marginTop: '8px', fontSize: '12px' }}>
+                                  <div className="lead-endpoint-row" style={{ marginTop: '4px' }}>
+                                    <div>
+                                      <span>Verify Token</span>
+                                      <code>surfsync_verify</code>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="gov-btn"
+                                      onClick={() => copyText('surfsync_verify', `wa-verify-${source.id}`)}
+                                    >
+                                      {copiedKey === `wa-verify-${source.id}` ? '✓ Copied!' : 'Copy'}
+                                    </button>
+                                  </div>
+                                  <p className="muted" style={{ marginTop: '6px' }}>
+                                    Paste this URL and Verify Token in your Meta Developer App Webhooks setup.
+                                  </p>
+                                </div>
+                              )}
+
+                              {source.slug === 'calling' && (
+                                <p className="muted" style={{ fontSize: '12px', marginTop: '6px' }}>
+                                  Set this Webhook URL in your telephony system callback settings.
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   )}

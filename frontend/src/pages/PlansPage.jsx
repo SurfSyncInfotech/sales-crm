@@ -27,6 +27,7 @@ export default function PlansPage() {
   const [form, setForm] = useState(empty);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   async function load() {
     const data = await plansApi.list();
@@ -70,6 +71,7 @@ export default function PlansPage() {
           .filter(Boolean),
       });
       setForm(empty);
+      setShowForm(false);
       await load();
     } catch (err) {
       setError(err.message);
@@ -85,7 +87,16 @@ export default function PlansPage() {
           <p className="eyebrow">Subscriptions</p>
           <h1>Plans</h1>
         </div>
+        <button type="button" className="primary-btn" onClick={() => setShowForm((v) => !v)}>
+          {showForm ? 'Close form' : '+ Add plan'}
+        </button>
       </header>
+
+      <div className="mobile-cta-row mobile-only">
+        <button type="button" className="primary-btn" onClick={() => setShowForm((v) => !v)}>
+          {showForm ? 'Close form' : '+ Add plan'}
+        </button>
+      </div>
 
       {error && <div className="alert">{error}</div>}
 
@@ -122,55 +133,57 @@ export default function PlansPage() {
         })}
       </div>
 
-      <form className="panel form-grid" onSubmit={handleCreate}>
-        <h2>Create plan</h2>
-        <label>
-          Name
-          <input value={form.name} onChange={(e) => update('name', e.target.value)} required />
-        </label>
-        <label>
-          Slug
-          <input value={form.slug} onChange={(e) => update('slug', e.target.value)} required />
-        </label>
-        <label>
-          Monthly price
-          <input
-            type="number"
-            value={form.price_monthly}
-            onChange={(e) => update('price_monthly', e.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Yearly price
-          <input type="number" value={form.price_yearly} onChange={(e) => update('price_yearly', e.target.value)} />
-        </label>
-        <label>
-          Max salespersons
-          <input
-            type="number"
-            value={form.max_salespersons}
-            onChange={(e) => update('max_salespersons', e.target.value)}
-          />
-        </label>
-        <label>
-          Max leads
-          <input type="number" value={form.max_leads} onChange={(e) => update('max_leads', e.target.value)} />
-        </label>
-        <label className="full">
-          Description
-          <textarea value={form.description} onChange={(e) => update('description', e.target.value)} rows={2} />
-        </label>
-        <label className="full">
-          Features (comma separated)
-          <input value={form.features} onChange={(e) => update('features', e.target.value)} />
-        </label>
-        <div className="full form-actions">
-          <button type="submit" className="primary-btn" disabled={busy}>
-            {busy ? 'Saving…' : 'Add plan'}
-          </button>
-        </div>
-      </form>
+      {showForm && (
+        <form className="panel form-grid" onSubmit={handleCreate}>
+          <h2>Create plan</h2>
+          <label>
+            Name
+            <input value={form.name} onChange={(e) => update('name', e.target.value)} required />
+          </label>
+          <label>
+            Slug
+            <input value={form.slug} onChange={(e) => update('slug', e.target.value)} required />
+          </label>
+          <label>
+            Monthly price
+            <input
+              type="number"
+              value={form.price_monthly}
+              onChange={(e) => update('price_monthly', e.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Yearly price
+            <input type="number" value={form.price_yearly} onChange={(e) => update('price_yearly', e.target.value)} />
+          </label>
+          <label>
+            Max salespersons
+            <input
+              type="number"
+              value={form.max_salespersons}
+              onChange={(e) => update('max_salespersons', e.target.value)}
+            />
+          </label>
+          <label>
+            Max leads
+            <input type="number" value={form.max_leads} onChange={(e) => update('max_leads', e.target.value)} />
+          </label>
+          <label className="full">
+            Description
+            <textarea value={form.description} onChange={(e) => update('description', e.target.value)} rows={2} />
+          </label>
+          <label className="full">
+            Features (comma separated)
+            <input value={form.features} onChange={(e) => update('features', e.target.value)} />
+          </label>
+          <div className="full form-actions">
+            <button type="submit" className="primary-btn" disabled={busy}>
+              {busy ? 'Saving…' : 'Add plan'}
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

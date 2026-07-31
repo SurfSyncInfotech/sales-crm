@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { companiesApi, plansApi, paymentsApi } from '../api/client';
+import { companiesApi, plansApi } from '../api/client';
 
 const PAGE_SIZE = 10;
 
@@ -42,7 +42,7 @@ export default function CompaniesPage() {
   const [form, setForm] = useState(emptyForm);
   const [expandedId, setExpandedId] = useState(null);
   const [detail, setDetail] = useState(null);
-  const [payForm, setPayForm] = useState({ amount: '', plan_id: '', billing_cycle: 'monthly', notes: '' });
+
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [page, setPage] = useState(1);
@@ -115,12 +115,7 @@ export default function CompaniesPage() {
     try {
       const data = await companiesApi.get(company.id);
       setDetail(data);
-      setPayForm({
-        amount: '',
-        plan_id: data.company.plan_id || '',
-        billing_cycle: data.company.billing_cycle || 'monthly',
-        notes: '',
-      });
+
     } catch (err) {
       setError(err.message);
       setExpandedId(null);
@@ -138,29 +133,7 @@ export default function CompaniesPage() {
     }
   }
 
-  async function recordPayment(e) {
-    e.preventDefault();
-    if (!detail?.company) return;
-    setBusy(true);
-    try {
-      await paymentsApi.create({
-        company_id: detail.company.id,
-        plan_id: payForm.plan_id ? Number(payForm.plan_id) : detail.company.plan_id,
-        amount: Number(payForm.amount),
-        billing_cycle: payForm.billing_cycle,
-        status: 'paid',
-        notes: payForm.notes,
-      });
-      await load();
-      const data = await companiesApi.get(detail.company.id);
-      setDetail(data);
-      setPayForm((f) => ({ ...f, amount: '', notes: '' }));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
+
 
   const showingFrom = filtered.length === 0 ? 0 : pageStart + 1;
   const showingTo = Math.min(pageStart + PAGE_SIZE, filtered.length);
@@ -214,8 +187,18 @@ export default function CompaniesPage() {
           </label>
           <label>
             Plan
-            <select value={form.plan_id} onChange={(e) => updateField('plan_id', e.target.value)}>
-              <option value="">Select plan</option>
+            <select
+              value={form.plan_id}
+              onChange={(e) => {
+                const val = e.target.value;
+                setForm((f) => ({
+                  ...f,
+                  plan_id: val,
+                  status: val === '' ? 'trial' : (f.status === 'trial' ? 'active' : f.status),
+                }));
+              }}
+            >
+              <option value="">Trial</option>
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} — {money(p.price_monthly)}/mo
@@ -230,14 +213,15 @@ export default function CompaniesPage() {
               <option value="yearly">Yearly</option>
             </select>
           </label>
-          <label>
-            Status
-            <select value={form.status} onChange={(e) => updateField('status', e.target.value)}>
-              <option value="trial">Trial</option>
-              <option value="active">Active</option>
-              <option value="suspended">Suspended</option>
-            </select>
-          </label>
+          {form.plan_id !== '' && (
+            <label>
+              Status
+              <select value={form.status} onChange={(e) => updateField('status', e.target.value)}>
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+              </select>
+            </label>
+          )}
           <label>
             Admin name
             <input value={form.admin_name} onChange={(e) => updateField('admin_name', e.target.value)} required />
@@ -331,7 +315,7 @@ export default function CompaniesPage() {
                       <td>{c.phone || '—'}</td>
                       <td>{c.industry || '—'}</td>
                       <td>{[c.city, c.state].filter(Boolean).join(', ') || '—'}</td>
-                      <td>{c.plan_name || '—'}</td>
+                      <td>{c.plan_name || 'Trial'}</td>
                       <td style={{ textTransform: 'capitalize' }}>{c.billing_cycle || '—'}</td>
                       <td>
                         <span className={`badge badge-${c.status}`}>{c.status}</span>
@@ -398,7 +382,7 @@ export default function CompaniesPage() {
                                 </div>
                                 <div>
                                   <span>Plan</span>
-                                  <strong>{detail.company.plan_name || 'Unassigned'}</strong>
+                                  <strong>{detail.company.plan_name || 'Trial'}</strong>
                                 </div>
                                 <div>
                                   <span>Billing cycle</span>
@@ -419,8 +403,17 @@ export default function CompaniesPage() {
                                   </strong>
                                 </div>
                                 <div>
-                                  <span>Slug / Portal</span>
-                                  <strong>/c/{detail.company.slug}/login</strong>
+                                  <span>Login URL</span>
+                                  <strong>
+                                    <a
+                                      href={`/c/${detail.company.slug}/login`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{ textDecoration: 'underline' }}
+                                    >
+                                      /c/{detail.company.slug}/login
+                                    </a>
+                                  </strong>
                                 </div>
                                 <div>
                                   <span>Notes</span>
@@ -472,109 +465,35 @@ export default function CompaniesPage() {
                                 </div>
                               </div>
 
+
+
                               <div className="gov-detail-section">
-                                <h4>Record payment</h4>
-                                <form className="gov-pay-form" onSubmit={recordPayment}>
-                                  <label>
-                                    Amount (INR)
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={payForm.amount}
-                                      onChange={(e) => setPayForm((f) => ({ ...f, amount: e.target.value }))}
-                                      required
-                                    />
-                                  </label>
-                                  <label>
-                                    Plan
-                                    <select
-                                      value={payForm.plan_id}
-                                      onChange={(e) => setPayForm((f) => ({ ...f, plan_id: e.target.value }))}
-                                    >
-                                      <option value="">Keep current</option>
-                                      {plans.map((p) => (
-                                        <option key={p.id} value={p.id}>
-                                          {p.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </label>
-                                  <label>
-                                    Cycle
-                                    <select
-                                      value={payForm.billing_cycle}
-                                      onChange={(e) =>
-                                        setPayForm((f) => ({ ...f, billing_cycle: e.target.value }))
-                                      }
-                                    >
-                                      <option value="monthly">Monthly</option>
-                                      <option value="yearly">Yearly</option>
-                                    </select>
-                                  </label>
-                                  <button type="submit" className="gov-btn gov-btn-primary" disabled={busy}>
-                                    Mark paid
-                                  </button>
-                                </form>
-                              </div>
-
-                              <div className="gov-detail-split">
-                                <div className="gov-detail-section">
-                                  <h4>Users</h4>
-                                  <table className="gov-mini-table">
-                                    <thead>
-                                      <tr>
-                                        <th>Name</th>
-                                        <th>Email</th>
-                                        <th>Role</th>
-                                        <th>Status</th>
+                                <h4>Users</h4>
+                                <table className="gov-mini-table">
+                                  <thead>
+                                    <tr>
+                                      <th>Name</th>
+                                      <th>Email</th>
+                                      <th>Role</th>
+                                      <th>Status</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {detail.users.map((u) => (
+                                      <tr key={u.id}>
+                                        <td>{u.name}</td>
+                                        <td>{u.email}</td>
+                                        <td>{u.role}</td>
+                                        <td>{u.is_active ? 'Active' : 'Inactive'}</td>
                                       </tr>
-                                    </thead>
-                                    <tbody>
-                                      {detail.users.map((u) => (
-                                        <tr key={u.id}>
-                                          <td>{u.name}</td>
-                                          <td>{u.email}</td>
-                                          <td>{u.role}</td>
-                                          <td>{u.is_active ? 'Active' : 'Inactive'}</td>
-                                        </tr>
-                                      ))}
-                                      {detail.users.length === 0 && (
-                                        <tr>
-                                          <td colSpan={4}>No users yet.</td>
-                                        </tr>
-                                      )}
-                                    </tbody>
-                                  </table>
-                                </div>
-
-                                <div className="gov-detail-section">
-                                  <h4>Payments</h4>
-                                  <table className="gov-mini-table">
-                                    <thead>
+                                    ))}
+                                    {detail.users.length === 0 && (
                                       <tr>
-                                        <th>Invoice</th>
-                                        <th>Amount</th>
-                                        <th>Status</th>
-                                        <th>Paid at</th>
+                                        <td colSpan={4}>No users yet.</td>
                                       </tr>
-                                    </thead>
-                                    <tbody>
-                                      {detail.payments.map((p) => (
-                                        <tr key={p.id}>
-                                          <td>{p.invoice_number}</td>
-                                          <td>{money(p.amount)}</td>
-                                          <td>{p.status}</td>
-                                          <td>{formatDate(p.paid_at)}</td>
-                                        </tr>
-                                      ))}
-                                      {detail.payments.length === 0 && (
-                                        <tr>
-                                          <td colSpan={4}>No payments yet.</td>
-                                        </tr>
-                                      )}
-                                    </tbody>
-                                  </table>
-                                </div>
+                                    )}
+                                  </tbody>
+                                </table>
                               </div>
                             </div>
                           )}

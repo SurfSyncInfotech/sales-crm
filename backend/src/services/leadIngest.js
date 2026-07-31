@@ -80,18 +80,43 @@ function normalizeLeadInput(payload = {}) {
 }
 
 async function resolveIntegrationByWebhookKey(webhookKey, expectedSlugs = null) {
-  const [rows] = await pool.query(
-    `SELECT i.*, s.slug AS source_slug, s.name AS source_name, s.is_active AS source_active,
-            c.id AS company_id, c.name AS company_name, c.slug AS company_slug, c.status AS company_status
-     FROM company_lead_integrations i
-     JOIN lead_sources s ON s.id = i.source_id
-     JOIN companies c ON c.id = i.company_id
-     WHERE i.webhook_key = ?
+  // First check if the webhookKey is registered in company_form_urls
+  const [urlRows] = await pool.query(
+    `SELECT u.company_id, u.source_id, u.url, s.slug AS source_slug, s.name AS source_name, s.is_active AS source_active,
+            c.name AS company_name, c.slug AS company_slug, c.status AS company_status,
+            COALESCE(i.is_enabled, 0) AS is_enabled
+     FROM company_form_urls u
+     JOIN lead_sources s ON s.id = u.source_id
+     JOIN companies c ON c.id = u.company_id
+     LEFT JOIN company_lead_integrations i ON i.company_id = u.company_id AND i.source_id = u.source_id
+     WHERE u.webhook_key = ?
      LIMIT 1`,
     [webhookKey]
   );
 
-  const integration = rows[0];
+  let integration = null;
+  if (urlRows[0]) {
+    const row = urlRows[0];
+    integration = {
+      ...row,
+      webhook_key: webhookKey,
+      custom_url: row.url,
+    };
+  } else {
+    // Fallback: Check company_lead_integrations
+    const [rows] = await pool.query(
+      `SELECT i.*, s.slug AS source_slug, s.name AS source_name, s.is_active AS source_active,
+              c.id AS company_id, c.name AS company_name, c.slug AS company_slug, c.status AS company_status
+       FROM company_lead_integrations i
+       JOIN lead_sources s ON s.id = i.source_id
+       JOIN companies c ON c.id = i.company_id
+       WHERE i.webhook_key = ?
+       LIMIT 1`,
+      [webhookKey]
+    );
+    integration = rows[0];
+  }
+
   if (!integration) {
     const err = new Error('Invalid webhook key');
     err.status = 404;

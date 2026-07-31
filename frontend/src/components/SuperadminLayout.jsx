@@ -32,11 +32,20 @@ const links = [
     ),
   },
   {
-    to: '/admin/revenue',
-    label: 'Revenue',
+    to: '/admin/billing',
+    label: 'Billing',
     icon: (
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 19h16v-2H4v2Zm2.5-3.5 3.2-4.2 2.8 2.1L17 7l1.6 1.2-5.2 7.2-2.8-2.1-2.6 3.4L6.5 15.5Z" />
+      </svg>
+    ),
+  },
+  {
+    to: '/admin/trials',
+    label: 'Trial management',
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2A10 10 0 1 0 22 12A10 10 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8A8 8 0 0 1 12 20Zm1-13h-2v6l5.2 3.2l1-1.6l-4.2-2.6Z" />
       </svg>
     ),
   },
@@ -46,7 +55,8 @@ const titles = {
   '/admin': 'Overview',
   '/admin/companies': 'Companies',
   '/admin/plans': 'Plans',
-  '/admin/revenue': 'Revenue',
+  '/admin/billing': 'Billing',
+  '/admin/trials': 'Trial Management',
 };
 
 export default function SuperadminLayout() {

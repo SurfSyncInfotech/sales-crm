@@ -8,9 +8,10 @@ import CompanyLoginPage from './pages/CompanyLoginPage';
 import OverviewPage from './pages/OverviewPage';
 import CompaniesPage from './pages/CompaniesPage';
 import PlansPage from './pages/PlansPage';
-import RevenuePage from './pages/RevenuePage';
+import BillingPage from './pages/BillingPage';
 import CompanyDashboardPage from './pages/CompanyDashboardPage';
 import CompanyTeamPage from './pages/CompanyTeamPage';
+import TrialPage from './pages/TrialPage';
 import CompanyLeadsPage from './pages/CompanyLeadsPage';
 import PublicLeadCapturePage from './pages/PublicLeadCapturePage';
 import './index.css';
@@ -47,7 +48,8 @@ export default function App() {
               <Route index element={<OverviewPage />} />
               <Route path="companies" element={<CompaniesPage />} />
               <Route path="plans" element={<PlansPage />} />
-              <Route path="revenue" element={<RevenuePage />} />
+              <Route path="billing" element={<BillingPage />} />
+              <Route path="trials" element={<TrialPage />} />
             </Route>
           </Route>
 
