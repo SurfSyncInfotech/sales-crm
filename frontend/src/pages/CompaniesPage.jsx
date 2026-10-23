@@ -124,6 +124,25 @@ export default function CompaniesPage() {
     }
   }
 
+  async function deleteCompany(company) {
+    const typed = window.prompt(
+      `This permanently deletes "${company.name}" with all its users, leads and payments. This cannot be undone.\n\nType the company name to confirm:`
+    );
+    if (typed === null) return;
+    if (typed.trim() !== company.name) {
+      setError('Company name did not match. Nothing was deleted.');
+      return;
+    }
+    try {
+      await companiesApi.remove(company.id);
+      setExpandedId(null);
+      setDetail(null);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function changeStatus(companyId, status) {
     await companiesApi.setStatus(companyId, status);
     await load();
@@ -461,6 +480,13 @@ export default function CompaniesPage() {
                                     onClick={() => changeStatus(detail.company.id, 'cancelled')}
                                   >
                                     Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="gov-btn gov-btn-danger"
+                                    onClick={() => deleteCompany(detail.company)}
+                                  >
+                                    Delete permanently
                                   </button>
                                 </div>
                               </div>

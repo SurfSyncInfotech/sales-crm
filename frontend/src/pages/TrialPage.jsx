@@ -315,7 +315,7 @@ export default function TrialPage() {
                 className="primary-btn"
                 onClick={executeExtend}
                 disabled={busy}
-                style={{ background: 'var(--orange-600)', color: '#fff', border: 'none' }}
+                style={{ background: 'var(--green-600)', color: '#fff', border: 'none' }}
               >
                 {busy ? 'Saving…' : 'Extend'}
               </button>
@@ -434,7 +434,7 @@ export default function TrialPage() {
                   type="submit"
                   className="primary-btn"
                   disabled={busy}
-                  style={{ background: 'var(--orange-600)', color: '#fff', border: 'none' }}
+                  style={{ background: 'var(--green-600)', color: '#fff', border: 'none' }}
                 >
                   {busy ? 'Saving…' : 'Mark Paid'}
                 </button>

@@ -1,42 +1,28 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { CheckSquare, FileText, Inbox, KanbanSquare, LayoutDashboard, Settings, Users, Workflow } from 'lucide-react';
 import BrandLogo from './BrandLogo';
 
 const links = [
-  {
-    to: '/company',
-    label: 'Home',
-    end: true,
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5.2v-6.2H10.2V21H5a1 1 0 0 1-1-1v-9.5Z" />
-      </svg>
-    ),
-  },
-  {
-    to: '/company/leads',
-    label: 'Leads',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M4 5h16v2.2H4V5Zm0 5.9h16V13H4v-2.1Zm0 5.9h10.5V19H4v-2.2Z" />
-      </svg>
-    ),
-  },
-  {
-    to: '/company/team',
-    label: 'Team',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm-7.5 8a7.5 7.5 0 0 1 15 0v1H4.5v-1Z" />
-      </svg>
-    ),
-  },
+  { to: '/company', label: 'Home', end: true, mobile: true, icon: <LayoutDashboard size={18} /> },
+  { to: '/company/leads', label: 'Leads', mobile: true, icon: <Inbox size={18} /> },
+  { to: '/company/pipeline', label: 'Pipeline', mobile: true, icon: <KanbanSquare size={18} /> },
+  { to: '/company/tasks', label: 'Tasks', mobile: true, icon: <CheckSquare size={18} /> },
+  { to: '/company/quotations', label: 'Quotes', mobile: true, icon: <FileText size={18} /> },
+  { to: '/company/automation', label: 'Automation', icon: <Workflow size={18} /> },
+  { to: '/company/team', label: 'Team', icon: <Users size={18} /> },
+  { to: '/company/workflow-settings', label: 'Settings', icon: <Settings size={18} /> },
 ];
 
 const titles = {
   '/company': 'Dashboard',
   '/company/leads': 'Leads',
+  '/company/pipeline': 'Pipeline',
+  '/company/tasks': 'Tasks',
+  '/company/quotations': 'Quotations',
+  '/company/automation': 'Automation',
   '/company/team': 'Team',
+  '/company/workflow-settings': 'Settings',
 };
 
 function money(n) {
@@ -104,17 +90,17 @@ export default function CompanyLayout() {
               .invoice-box { max-width: 800px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px; }
               .header-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
               .header-table td { vertical-align: top; }
-              .company-name { font-size: 1.5rem; font-weight: 700; color: #e86f0c; margin: 0 0 5px 0; }
-              .invoice-title { font-size: 1.25rem; font-weight: 700; color: #fff; background: #e86f0c; padding: 5px 10px; border-radius: 4px; display: inline-block; float: right; }
+              .company-name { font-size: 1.5rem; font-weight: 700; color: #1f9a5a; margin: 0 0 5px 0; }
+              .invoice-title { font-size: 1.25rem; font-weight: 700; color: #fff; background: #1f9a5a; padding: 5px 10px; border-radius: 4px; display: inline-block; float: right; }
               .meta-table { width: 100%; border-collapse: collapse; background: #f4f6f5; border: 1px solid #ddd; margin-bottom: 20px; }
               .meta-table td { padding: 10px; font-size: 0.9rem; border-right: 1px solid #ddd; }
               .meta-table td:last-child { border-right: none; }
               .grid-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
               .grid-table td { width: 50%; vertical-align: top; }
               .bill-to-box { border: 1px solid #ddd; border-radius: 6px; padding: 15px; background: #fafafa; }
-              .bill-to-box h3 { margin: 0 0 10px 0; color: #e86f0c; font-size: 1.1rem; }
+              .bill-to-box h3 { margin: 0 0 10px 0; color: #1f9a5a; font-size: 1.1rem; }
               .item-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-              .item-table th { background: #e86f0c; color: #fff; text-align: left; padding: 10px; font-size: 0.9rem; }
+              .item-table th { background: #1f9a5a; color: #fff; text-align: left; padding: 10px; font-size: 0.9rem; }
               .item-table td { padding: 12px 10px; border-bottom: 1px solid #eee; font-size: 0.9rem; vertical-align: top; }
               .subtotal-row td { font-weight: 700; background: #f9f9f9; }
               .bank-terms-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
@@ -181,7 +167,7 @@ export default function CompanyLayout() {
                         </tr>
                         <tr>
                           <td>Received Amount:</td>
-                          <td style="text-align: right; color: #e86f0c; font-weight: 600;">${money(0)}</td>
+                          <td style="text-align: right; color: #1f9a5a; font-weight: 600;">${money(0)}</td>
                         </tr>
                         <tr>
                           <td>Balance Due:</td>
@@ -208,7 +194,7 @@ export default function CompanyLayout() {
                 <tbody>
                   <tr>
                     <td>
-                      <strong style="color: #e86f0c;">SURFSYNC CRM SUBSCRIPTION — ${planName.toUpperCase()} PLAN</strong>
+                      <strong style="color: #1f9a5a;">SURFSYNC CRM SUBSCRIPTION — ${planName.toUpperCase()} PLAN</strong>
                       <div style="font-size: 0.8rem; color: #666; margin-top: 8px;">
                         Scope of Work & Features:
                         <ul style="margin: 5px 0 0 0; padding-left: 20px;">
@@ -221,7 +207,7 @@ export default function CompanyLayout() {
                   </tr>
                   <tr class="subtotal-row">
                     <td>SUBTOTAL</td>
-                    <td colspan="2" style="text-align: right; color: #e86f0c;">${money(pendingInvoice.amount)}</td>
+                    <td colspan="2" style="text-align: right; color: #1f9a5a;">${money(pendingInvoice.amount)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -273,7 +259,7 @@ export default function CompanyLayout() {
 
     return (
       <div className="lock-screen-container" style={{ background: '#f4f6f9', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '2rem', boxSizing: 'border-box' }}>
-        <div style={{ background: 'var(--orange-600)', color: '#fff', padding: '2rem 1.5rem', borderRadius: '12px 12px 0 0', textAlign: 'center', width: '100%', maxWidth: '650px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', boxSizing: 'border-box' }}>
+        <div style={{ background: 'var(--green-600)', color: '#fff', padding: '2rem 1.5rem', borderRadius: '12px 12px 0 0', textAlign: 'center', width: '100%', maxWidth: '650px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', boxSizing: 'border-box' }}>
           <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: '700' }}>Subscription Payment Pending</h2>
           <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.95rem', opacity: 0.9 }}>
             Invoice #{pendingInvoice.invoice_number} has been generated for {user?.company?.name || 'your company'}.
@@ -305,7 +291,7 @@ export default function CompanyLayout() {
               </div>
               <div>
                 <small style={{ color: '#718096', display: 'block', fontSize: '0.85rem' }}>Total Amount</small>
-                <strong style={{ fontSize: '1.1rem', color: 'var(--orange-600)' }}>{money(pendingInvoice.amount)}</strong>
+                <strong style={{ fontSize: '1.1rem', color: 'var(--green-600)' }}>{money(pendingInvoice.amount)}</strong>
               </div>
               <div>
                 <small style={{ color: '#718096', display: 'block', fontSize: '0.85rem' }}>Due Date</small>
@@ -429,8 +415,8 @@ export default function CompanyLayout() {
           <Outlet />
         </main>
 
-        <nav className="mobile-tabbar mobile-tabbar-3 mobile-only" aria-label="Primary">
-          {links.map((link) => (
+        <nav className="mobile-tabbar mobile-tabbar-5 mobile-only" aria-label="Primary">
+          {links.filter((l) => l.mobile).map((link) => (
             <NavLink key={link.to} to={link.to} end={link.end} className={({ isActive }) => (isActive ? 'active' : '')}>
               <span className="nav-icon">{link.icon}</span>
               <span>{link.label}</span>

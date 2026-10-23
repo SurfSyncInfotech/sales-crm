@@ -8,7 +8,8 @@
     "setup": "node src/setup.js",
     "migrate": "node src/setup.js",
     "migrate:leads": "node src/migrate_leads.js",
-    "migrate:facebook": "node src/migrate_facebook.js"
+    "migrate:facebook": "node src/migrate_facebook.js",
+    "migrate:crm": "node src/migrate_crm.js"
   },
   "keywords": [
     "surfsync",

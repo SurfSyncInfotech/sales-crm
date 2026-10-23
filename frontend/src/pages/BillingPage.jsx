@@ -55,17 +55,17 @@ const getInvoicePrintHtml = (p, company, plan) => {
           .invoice-box { max-width: 800px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px; }
           .header-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
           .header-table td { vertical-align: top; }
-          .company-name { font-size: 1.5rem; font-weight: 700; color: #e86f0c; margin: 0 0 5px 0; }
-          .invoice-title { font-size: 1.25rem; font-weight: 700; color: #fff; background: #e86f0c; padding: 5px 10px; border-radius: 4px; display: inline-block; float: right; }
+          .company-name { font-size: 1.5rem; font-weight: 700; color: #1f9a5a; margin: 0 0 5px 0; }
+          .invoice-title { font-size: 1.25rem; font-weight: 700; color: #fff; background: #1f9a5a; padding: 5px 10px; border-radius: 4px; display: inline-block; float: right; }
           .meta-table { width: 100%; border-collapse: collapse; background: #f4f6f5; border: 1px solid #ddd; margin-bottom: 20px; }
           .meta-table td { padding: 10px; font-size: 0.9rem; border-right: 1px solid #ddd; }
           .meta-table td:last-child { border-right: none; }
           .grid-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
           .grid-table td { width: 50%; vertical-align: top; }
           .bill-to-box { border: 1px solid #ddd; border-radius: 6px; padding: 15px; background: #fafafa; }
-          .bill-to-box h3 { margin: 0 0 10px 0; color: #e86f0c; font-size: 1.1rem; }
+          .bill-to-box h3 { margin: 0 0 10px 0; color: #1f9a5a; font-size: 1.1rem; }
           .item-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-          .item-table th { background: #e86f0c; color: #fff; text-align: left; padding: 10px; font-size: 0.9rem; }
+          .item-table th { background: #1f9a5a; color: #fff; text-align: left; padding: 10px; font-size: 0.9rem; }
           .item-table td { padding: 12px 10px; border-bottom: 1px solid #eee; font-size: 0.9rem; vertical-align: top; }
           .subtotal-row td { font-weight: 700; background: #f9f9f9; }
           .bank-terms-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
@@ -132,7 +132,7 @@ const getInvoicePrintHtml = (p, company, plan) => {
                     </tr>
                     <tr>
                       <td>Received Amount:</td>
-                      <td style="text-align: right; color: #e86f0c; font-weight: 600;">${money(isPaid ? p.amount : 0)}</td>
+                      <td style="text-align: right; color: #1f9a5a; font-weight: 600;">${money(isPaid ? p.amount : 0)}</td>
                     </tr>
                     <tr>
                       <td>Balance Due:</td>
@@ -159,7 +159,7 @@ const getInvoicePrintHtml = (p, company, plan) => {
             <tbody>
               <tr>
                 <td>
-                  <strong style="color: #e86f0c;">SURFSYNC CRM SUBSCRIPTION — ${planName.toUpperCase()} PLAN</strong>
+                  <strong style="color: #1f9a5a;">SURFSYNC CRM SUBSCRIPTION — ${planName.toUpperCase()} PLAN</strong>
                   <div style="font-size: 0.8rem; color: #666; margin-top: 8px;">
                     Scope of Work & Features:
                     <ul style="margin: 5px 0 0 0; padding-left: 20px;">
@@ -172,7 +172,7 @@ const getInvoicePrintHtml = (p, company, plan) => {
               </tr>
               <tr class="subtotal-row">
                 <td>SUBTOTAL</td>
-                <td colspan="2" style="text-align: right; color: #e86f0c;">${money(p.amount)}</td>
+                <td colspan="2" style="text-align: right; color: #1f9a5a;">${money(p.amount)}</td>
               </tr>
             </tbody>
           </table>
@@ -429,7 +429,7 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
         <button
           type="button"
           className="primary-btn"
-          style={{ backgroundColor: 'var(--orange-600)', borderColor: 'var(--orange-600)' }}
+          style={{ backgroundColor: 'var(--green-600)', borderColor: 'var(--green-600)' }}
           onClick={() => setShowCreateModal(true)}
         >
           + Create Invoice
@@ -446,13 +446,13 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
         </article>
         <article className="stat-card">
           <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#666' }}>PAID</span>
-          <strong style={{ color: 'var(--orange-600)' }}>{stats.paid}</strong>
+          <strong style={{ color: 'var(--green-600)' }}>{stats.paid}</strong>
         </article>
         <article className="stat-card">
           <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#666' }}>OVERDUE</span>
           <strong style={{ color: '#c65911' }}>{stats.overdue}</strong>
         </article>
-        <article className="stat-card accent" style={{ borderLeftColor: 'var(--orange-600)' }}>
+        <article className="stat-card accent" style={{ borderLeftColor: 'var(--green-600)' }}>
           <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#fff' }}>TOTAL REVENUE</span>
           <strong style={{ color: '#fff' }}>{money(stats.revenue)}</strong>
         </article>
@@ -482,7 +482,7 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
         <div className="gov-table-wrap">
           <div className="gov-table-scroll">
             <table className="gov-table">
-              <thead style={{ backgroundColor: 'var(--orange-600)', color: '#ffffff' }}>
+              <thead style={{ backgroundColor: 'var(--green-600)', color: '#ffffff' }}>
                 <tr>
                   <th style={{ color: '#ffffff' }}>INVOICE #</th>
                   <th style={{ color: '#ffffff' }}>COMPANY</th>
@@ -514,7 +514,7 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
                     return (
                       <tr key={p.id} className={index % 2 === 1 ? 'gov-row-alt' : ''}>
                         <td className="gov-strong">{p.invoice_number}</td>
-                        <td className="gov-strong" style={{ color: 'var(--orange-600)' }}>{p.company_name}</td>
+                        <td className="gov-strong" style={{ color: 'var(--green-600)' }}>{p.company_name}</td>
                         <td>{p.plan_name || 'Trial'}</td>
                         <td style={{ fontWeight: '600' }}>{money(p.amount)}</td>
                         <td style={{ textTransform: 'uppercase' }}>{p.billing_cycle}</td>
@@ -548,7 +548,7 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
                                 type="button"
                                 className="gov-btn"
                                 onClick={() => handleMarkPaid(p.id)}
-                                style={{ backgroundColor: '#fff4eb', color: 'var(--orange-600)', borderColor: 'var(--orange-200)' }}
+                                style={{ backgroundColor: '#fff4eb', color: 'var(--green-600)', borderColor: 'var(--green-200)' }}
                               >
                                 Mark Paid
                               </button>
@@ -594,7 +594,7 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
       {showCreateModal && (
         <div className="modal-overlay">
           <div className="modal-card" style={{ maxWidth: '600px' }}>
-            <h3 style={{ backgroundColor: 'var(--orange-600)', color: '#fff', margin: '-1.75rem -1.75rem 1.25rem -1.75rem', padding: '1.25rem 1.75rem', borderRadius: '12px 12px 0 0', fontWeight: '700' }}>
+            <h3 style={{ backgroundColor: 'var(--green-600)', color: '#fff', margin: '-1.75rem -1.75rem 1.25rem -1.75rem', padding: '1.25rem 1.75rem', borderRadius: '12px 12px 0 0', fontWeight: '700' }}>
               CREATE INVOICE
             </h3>
             <form onSubmit={handleCreateInvoice} style={{ display: 'grid', gap: '0.85rem' }}>
@@ -686,7 +686,7 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
                   className="gov-btn"
                   onClick={() => setShowCreateModal(false)}
                   disabled={busy}
-                  style={{ color: 'var(--orange-600)', borderColor: '#ddd', backgroundColor: '#f9f9f9', fontWeight: '600' }}
+                  style={{ color: 'var(--green-600)', borderColor: '#ddd', backgroundColor: '#f9f9f9', fontWeight: '600' }}
                 >
                   Cancel
                 </button>
@@ -694,7 +694,7 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
                   type="submit"
                   className="primary-btn"
                   disabled={busy}
-                  style={{ backgroundColor: 'var(--orange-600)', color: '#fff', border: 'none', fontWeight: '600' }}
+                  style={{ backgroundColor: 'var(--green-600)', color: '#fff', border: 'none', fontWeight: '600' }}
                 >
                   {busy ? 'Creating…' : 'Create Invoice'}
                 </button>
@@ -733,14 +733,14 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
             <div className="modal-card" style={{ maxWidth: '850px', width: '90%', maxHeight: '90vh', overflowY: 'auto', padding: 0, border: 'none' }}>
               
               {/* Header actions */}
-              <h3 style={{ backgroundColor: 'var(--orange-600)', color: '#fff', margin: 0, padding: '1rem 1.5rem', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ backgroundColor: 'var(--green-600)', color: '#fff', margin: 0, padding: '1rem 1.5rem', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>Invoice {activeInvoice.invoice_number} — {company.name}</span>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                   <button
                     type="button"
                     className="primary-btn"
                     onClick={handlePrint}
-                    style={{ backgroundColor: 'var(--orange-600)', color: '#fff', border: 'none', padding: '0.45rem 1rem', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', borderRadius: '4px' }}
+                    style={{ backgroundColor: 'var(--green-600)', color: '#fff', border: 'none', padding: '0.45rem 1rem', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', borderRadius: '4px' }}
                   >
                     Print / Download PDF
                   </button>
@@ -758,9 +758,9 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
               <div style={{ padding: '2rem', background: '#fff', color: '#333', fontSize: '0.9rem', lineHeight: '1.5', textAlign: 'left' }}>
                 
                 {/* Header Table */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid var(--orange-600)', paddingBottom: '1.5rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid var(--green-600)', paddingBottom: '1.5rem', marginBottom: '1.5rem' }}>
                   <div>
-                    <h2 style={{ margin: '0 0 0.5rem 0', color: 'var(--orange-600)', fontSize: '1.5rem', fontWeight: '700' }}>SURFSYNC INFOTECH PRIVATE LIMITED</h2>
+                    <h2 style={{ margin: '0 0 0.5rem 0', color: 'var(--green-600)', fontSize: '1.5rem', fontWeight: '700' }}>SURFSYNC INFOTECH PRIVATE LIMITED</h2>
                     <div style={{ fontSize: '0.85rem', color: '#555' }}>
                       SurfSync Infotech Pvt. Ltd, Sector-75, Noida, UP 201301<br />
                       Mobile: 9429693456 | Email: info@surfsyncinfotech.in<br />
@@ -768,7 +768,7 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '1.1rem', fontWeight: '700', color: '#fff', background: 'var(--orange-600)', padding: '0.4rem 0.8rem', borderRadius: '4px', textTransform: 'uppercase' }}>
+                    <span style={{ fontSize: '1.1rem', fontWeight: '700', color: '#fff', background: 'var(--green-600)', padding: '0.4rem 0.8rem', borderRadius: '4px', textTransform: 'uppercase' }}>
                       BILL OF SUPPLY
                     </span>
                   </div>
@@ -784,7 +784,7 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
                 {/* Grid layout */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
                   <div style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '1.25rem', backgroundColor: '#fafafa' }}>
-                    <h4 style={{ margin: '0 0 0.75rem 0', color: 'var(--orange-600)', fontSize: '1.05rem', fontWeight: '700' }}>BILL TO</h4>
+                    <h4 style={{ margin: '0 0 0.75rem 0', color: 'var(--green-600)', fontSize: '1.05rem', fontWeight: '700' }}>BILL TO</h4>
                     <strong style={{ fontSize: '1.05rem' }}>{company.name || 'Company Name'}</strong>
                     <div style={{ marginTop: '0.5rem', color: '#555' }}>
                       {[company.city, company.state, company.country].filter(Boolean).join(', ') || 'Address not set'}<br />
@@ -802,7 +802,7 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
                           </tr>
                           <tr style={{ borderBottom: '1px solid #eee' }}>
                             <td style={{ padding: '0.5rem 0' }}>Received Amount:</td>
-                            <td style={{ textAlign: 'right', color: 'var(--orange-600)', fontWeight: '600' }}>{money(isPaid ? activeInvoice.amount : 0)}</td>
+                            <td style={{ textAlign: 'right', color: 'var(--green-600)', fontWeight: '600' }}>{money(isPaid ? activeInvoice.amount : 0)}</td>
                           </tr>
                           <tr>
                             <td style={{ padding: '0.5rem 0' }}>Balance Due:</td>
@@ -821,7 +821,7 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
                 {/* Items Table */}
                 <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1.5rem' }}>
                   <thead>
-                    <tr style={{ backgroundColor: 'var(--orange-600)', color: '#fff' }}>
+                    <tr style={{ backgroundColor: 'var(--green-600)', color: '#fff' }}>
                       <th style={{ textAlign: 'left', padding: '0.75rem', fontSize: '0.85rem', fontWeight: '600', color: '#fff' }}>SERVICES</th>
                       <th style={{ textAlign: 'right', padding: '0.75rem', fontSize: '0.85rem', fontWeight: '600', width: '120px', color: '#fff' }}>RATE</th>
                       <th style={{ textAlign: 'right', padding: '0.75rem', fontSize: '0.85rem', fontWeight: '600', width: '120px', color: '#fff' }}>AMOUNT</th>
@@ -830,7 +830,7 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
                   <tbody>
                     <tr style={{ borderBottom: '1px solid #eee' }}>
                       <td style={{ padding: '1rem 0.75rem' }}>
-                        <strong style={{ color: 'var(--orange-600)' }}>SURFSYNC CRM SUBSCRIPTION — {planName.toUpperCase()} PLAN</strong>
+                        <strong style={{ color: 'var(--green-600)' }}>SURFSYNC CRM SUBSCRIPTION — {planName.toUpperCase()} PLAN</strong>
                         <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.5rem' }}>
                           Scope of Work & Features:
                           <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.25rem' }}>
@@ -843,7 +843,7 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
                     </tr>
                     <tr style={{ backgroundColor: '#f9f9f9', fontWeight: '700' }}>
                       <td style={{ padding: '0.75rem' }}>SUBTOTAL</td>
-                      <td colSpan={2} style={{ textAlign: 'right', padding: '0.75rem', color: 'var(--orange-600)' }}>{money(activeInvoice.amount)}</td>
+                      <td colSpan={2} style={{ textAlign: 'right', padding: '0.75rem', color: 'var(--green-600)' }}>{money(activeInvoice.amount)}</td>
                     </tr>
                   </tbody>
                 </table>

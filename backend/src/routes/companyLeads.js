@@ -4,6 +4,7 @@ const XLSX = require('xlsx');
 const pool = require('../config/db');
 const { authRequired, requireCompanyUser } = require('../middleware/auth');
 const { createLeadFromPayload, parseTags } = require('../services/leadIngest');
+const { setLeadStage, logActivity } = require('../services/pipeline');
 const {
   metaConfigured,
   buildConnectUrl,
@@ -723,6 +724,28 @@ router.patch('/:id', async (req, res) => {
         companyId,
       ]
     );
+
+    if (status && status !== existing.status) {
+      const [stageRows] = await pool.query(
+        `SELECT id FROM pipeline_stages WHERE company_id = ? AND legacy_status = ? AND is_active = 1
+         ORDER BY position ASC LIMIT 1`,
+        [companyId, status]
+      );
+      if (stageRows[0]) {
+        await setLeadStage({ companyId, leadId, stageId: stageRows[0].id, actorId: req.user.id });
+      }
+    }
+    const newAssignee = typeof assigned_to === 'undefined' ? existing.assigned_to : assigned_to || null;
+    if (newAssignee !== existing.assigned_to) {
+      await logActivity({
+        companyId,
+        leadId,
+        type: 'assigned',
+        summary: newAssignee ? 'Lead reassigned manually' : 'Lead unassigned',
+        meta: { from_user_id: existing.assigned_to, to_user_id: newAssignee },
+        actorId: req.user.id,
+      });
+    }
 
     const [rows] = await pool.query(
       `SELECT l.*, s.name AS source_label, u.name AS assigned_name

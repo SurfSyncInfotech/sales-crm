@@ -72,6 +72,7 @@ export const companiesApi = {
     api(`/companies/${id}/status`, { method: 'PATCH', body: { status }, portal: 'superadmin' }),
   extendTrial: (id, days) =>
     api(`/companies/${id}/extend-trial`, { method: 'POST', body: { days }, portal: 'superadmin' }),
+  remove: (id) => api(`/companies/${id}/permanent`, { method: 'DELETE', portal: 'superadmin' }),
   expireTrial: (id) =>
     api(`/companies/${id}/expire-trial`, { method: 'POST', portal: 'superadmin' }),
 };

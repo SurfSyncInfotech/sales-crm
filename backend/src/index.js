@@ -7,6 +7,8 @@ const authRoutes = require('./routes/auth');
 const companyRoutes = require('./routes/companies');
 const companyPortalRoutes = require('./routes/company');
 const companyLeadsRoutes = require('./routes/companyLeads');
+const crmRoutes = require('./routes/crm');
+const companyWhatsappRoutes = require('./routes/companyWhatsapp');
 const publicLeadsRoutes = require('./routes/publicLeads');
 const planRoutes = require('./routes/plans');
 const paymentRoutes = require('./routes/payments');
@@ -17,7 +19,9 @@ async function start() {
     const ran = await migrate({ seed: true, silent: false });
     console.log(`DB ready (${ran.join(', ') || 'no sql files'}).`);
     const { ensureFacebookSchema } = require('./migrate_facebook');
+    const { ensureCrmSchema } = require('./migrate_crm');
     await ensureFacebookSchema({ silent: true });
+    await ensureCrmSchema({ silent: true });
   } catch (err) {
     console.error('Auto SQL migrate failed:', err.message);
     process.exit(1);
@@ -37,6 +41,8 @@ async function start() {
   app.use('/api/auth', authRoutes);
   app.use('/api/companies', companyRoutes);
   app.use('/api/company/leads', companyLeadsRoutes);
+  app.use('/api/company/crm', crmRoutes);
+  app.use('/api/company/whatsapp', companyWhatsappRoutes);
   app.use('/api/company', companyPortalRoutes);
   app.use('/api/public/leads', publicLeadsRoutes);
   app.use('/api/plans', planRoutes);

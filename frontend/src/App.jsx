@@ -13,8 +13,15 @@ import CompanyDashboardPage from './pages/CompanyDashboardPage';
 import CompanyTeamPage from './pages/CompanyTeamPage';
 import TrialPage from './pages/TrialPage';
 import CompanyLeadsPage from './pages/CompanyLeadsPage';
+import PipelinePage from './pages/PipelinePage';
+import TasksPage from './pages/TasksPage';
+import QuotationsPage from './pages/QuotationsPage';
+import AutomationPage from './pages/AutomationPage';
+import WorkflowSettingsPage from './pages/WorkflowSettingsPage';
+import WorkflowProvider from './features/workflow/WorkflowProvider';
 import PublicLeadCapturePage from './pages/PublicLeadCapturePage';
 import './index.css';
+import './ui.css';
 
 function HomeRedirect() {
   const { superadminUser, companyUser, loading } = useAuth();
@@ -62,10 +69,22 @@ export default function App() {
               />
             }
           >
-            <Route path="/company" element={<CompanyLayout />}>
+            <Route
+              path="/company"
+              element={
+                <WorkflowProvider>
+                  <CompanyLayout />
+                </WorkflowProvider>
+              }
+            >
               <Route index element={<CompanyDashboardPage />} />
               <Route path="leads" element={<CompanyLeadsPage />} />
+              <Route path="pipeline" element={<PipelinePage />} />
+              <Route path="tasks" element={<TasksPage />} />
+              <Route path="quotations" element={<QuotationsPage />} />
+              <Route path="automation" element={<AutomationPage />} />
               <Route path="team" element={<CompanyTeamPage />} />
+              <Route path="workflow-settings" element={<WorkflowSettingsPage />} />
             </Route>
           </Route>
 

@@ -85,7 +85,7 @@ function DonutChart({ active = 0, inactive = 0, trial = 0 }) {
               cy="50"
               r={radius}
               fill="transparent"
-              stroke="var(--orange-500)"
+              stroke="var(--green-500)"
               strokeWidth="9"
               strokeDasharray={`${strokeTrial} ${circumference - strokeTrial}`}
               strokeDashoffset={-strokeActive}
@@ -124,7 +124,7 @@ function DonutChart({ active = 0, inactive = 0, trial = 0 }) {
           Active ({active})
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: '600', color: 'var(--ink-soft)' }}>
-          <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: 'var(--orange-500)', borderRadius: '50%' }} />
+          <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: 'var(--green-500)', borderRadius: '50%' }} />
           Trial ({trial})
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: '600', color: 'var(--ink-soft)' }}>
@@ -168,7 +168,7 @@ function InvoiceDonutChart({ paid = 0, pending = 0 }) {
               cy="50"
               r={radius}
               fill="transparent"
-              stroke="var(--orange-500)"
+              stroke="var(--green-500)"
               strokeWidth="9"
               strokeDasharray={`${strokePending} ${circumference - strokePending}`}
               strokeDashoffset={-strokePaid}
@@ -204,7 +204,7 @@ function InvoiceDonutChart({ paid = 0, pending = 0 }) {
           Paid ({paid})
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: '600', color: 'var(--ink-soft)' }}>
-          <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: 'var(--orange-500)', borderRadius: '50%' }} />
+          <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: 'var(--green-500)', borderRadius: '50%' }} />
           Pending ({pending})
         </span>
       </div>
@@ -284,8 +284,8 @@ function RevenueLineChart({ monthly = [] }) {
       <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="150" style={{ overflow: 'visible' }}>
         <defs>
           <linearGradient id="premiumOrangeGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--orange-500)" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="var(--orange-500)" stopOpacity="0.0" />
+            <stop offset="0%" stopColor="var(--green-500)" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="var(--green-500)" stopOpacity="0.0" />
           </linearGradient>
         </defs>
         
@@ -302,7 +302,7 @@ function RevenueLineChart({ monthly = [] }) {
           <path 
             d={smoothLinePath} 
             fill="none" 
-            stroke="var(--orange-600)" 
+            stroke="var(--green-600)" 
             strokeWidth="3.5" 
             strokeLinecap="round" 
             strokeLinejoin="round" 
@@ -313,7 +313,7 @@ function RevenueLineChart({ monthly = [] }) {
         {/* Glowing node coordinates */}
         {points.map((p, idx) => (
           <g key={idx}>
-            <circle cx={p.x} cy={p.y} r="4.5" fill="#fff" stroke="var(--orange-600)" strokeWidth="2.5" />
+            <circle cx={p.x} cy={p.y} r="4.5" fill="#fff" stroke="var(--green-600)" strokeWidth="2.5" />
             <title>{`${p.month}: ${money(p.revenue)}`}</title>
           </g>
         ))}
@@ -364,7 +364,7 @@ export default function OverviewPage() {
     <div className="page" style={{ paddingBottom: '3rem', maxWidth: '1280px', margin: '0 auto' }}>
       <header className="page-head" style={{ marginBottom: '1.75rem', borderBottom: '1px solid var(--line)', paddingBottom: '1.25rem' }}>
         <div>
-          <p className="eyebrow" style={{ color: 'var(--orange-600)', fontWeight: '700', letterSpacing: '0.05em' }}>SURFSYNC PLATFORM MANAGEMENT</p>
+          <p className="eyebrow" style={{ color: 'var(--green-600)', fontWeight: '700', letterSpacing: '0.05em' }}>SURFSYNC PLATFORM MANAGEMENT</p>
           <h1 style={{ fontSize: '2.25rem', fontWeight: '800', margin: '0.25rem 0', fontFamily: "'Fraunces', serif" }}>Overview</h1>
           <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
             System dashboard and performance analytics.
@@ -374,7 +374,7 @@ export default function OverviewPage() {
           to="/admin/companies" 
           className="primary-btn" 
           style={{ 
-            backgroundColor: 'var(--orange-600)', 
+            backgroundColor: 'var(--green-600)', 
             border: 'none', 
             boxShadow: '0 4px 14px rgba(232, 111, 12, 0.3)',
             padding: '0.65rem 1.25rem',
@@ -399,12 +399,12 @@ export default function OverviewPage() {
         </article>
         <article className="stat-card" style={{ border: '1px solid var(--line)', background: 'linear-gradient(135deg, rgba(245, 130, 32, 0.04) 0%, #fff 100%)', padding: '1.25rem', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', transition: 'transform 0.2s ease' }}>
           <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>On Trial</span>
-          <strong style={{ fontSize: '2.25rem', fontWeight: '800', display: 'block', margin: '0.25rem 0', color: 'var(--orange-400)' }}>{data.counts.trial_companies}</strong>
+          <strong style={{ fontSize: '2.25rem', fontWeight: '800', display: 'block', margin: '0.25rem 0', color: 'var(--green-400)' }}>{data.counts.trial_companies}</strong>
           <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Evaluation period active</span>
         </article>
         <article className="stat-card" style={{ border: '1px solid var(--line)', background: 'linear-gradient(135deg, rgba(232, 111, 12, 0.04) 0%, #fff 100%)', padding: '1.25rem', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', transition: 'transform 0.2s ease' }}>
           <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Platform Revenue</span>
-          <strong style={{ fontSize: '2.25rem', fontWeight: '800', display: 'block', margin: '0.25rem 0', color: 'var(--orange-700)' }}>{money(data.revenue.total_revenue)}</strong>
+          <strong style={{ fontSize: '2.25rem', fontWeight: '800', display: 'block', margin: '0.25rem 0', color: 'var(--green-700)' }}>{money(data.revenue.total_revenue)}</strong>
           <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>All-time collected</span>
         </article>
       </section>
@@ -490,7 +490,7 @@ export default function OverviewPage() {
         <div style={{ border: '1px solid var(--line)', borderRadius: '16px', backgroundColor: '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', overflow: 'hidden' }}>
           <div style={{ padding: '1.25rem 1.25rem 0.75rem 1.25rem', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontWeight: '800', fontSize: '0.85rem', color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>RECENT COMPANIES</span>
-            <Link to="/admin/companies" style={{ color: 'var(--orange-600)', fontSize: '0.75rem', fontWeight: '700', textDecoration: 'none' }}>VIEW ALL</Link>
+            <Link to="/admin/companies" style={{ color: 'var(--green-600)', fontSize: '0.75rem', fontWeight: '700', textDecoration: 'none' }}>VIEW ALL</Link>
           </div>
           <div style={{ padding: '0.5rem 0' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
@@ -519,17 +519,17 @@ export default function OverviewPage() {
         <div style={{ border: '1px solid var(--line)', borderRadius: '16px', backgroundColor: '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', overflow: 'hidden' }}>
           <div style={{ padding: '1.25rem 1.25rem 0.75rem 1.25rem', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontWeight: '800', fontSize: '0.85rem', color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>EXPIRING TRIALS</span>
-            <Link to="/admin/trials" style={{ color: 'var(--orange-600)', fontSize: '0.75rem', fontWeight: '700', textDecoration: 'none' }}>MANAGE</Link>
+            <Link to="/admin/trials" style={{ color: 'var(--green-600)', fontSize: '0.75rem', fontWeight: '700', textDecoration: 'none' }}>MANAGE</Link>
           </div>
           <div style={{ padding: '0.5rem 0' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
               <tbody>
-                {data.expiringTrials.length === 0 ? (
+                {(data.expiringTrials || []).length === 0 ? (
                   <tr>
                     <td colSpan="2" style={{ padding: '2rem', textAlign: 'center', fontSize: '0.85rem', color: 'var(--muted)' }}>No trials expiring soon.</td>
                   </tr>
                 ) : (
-                  data.expiringTrials.slice(0, 5).map((c) => (
+                  (data.expiringTrials || []).slice(0, 5).map((c) => (
                     <tr key={c.id} style={{ borderBottom: '1px solid var(--line)' }}>
                       <td style={{ padding: '0.75rem 1.25rem', fontSize: '0.85rem', fontWeight: '750', color: 'var(--ink)', width: '60%', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                         {c.name}
@@ -552,7 +552,7 @@ export default function OverviewPage() {
         <div style={{ border: '1px solid var(--line)', borderRadius: '16px', backgroundColor: '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', overflow: 'hidden' }}>
           <div style={{ padding: '1.25rem 1.25rem 0.75rem 1.25rem', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontWeight: '800', fontSize: '0.85rem', color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>RECENT INVOICES</span>
-            <Link to="/admin/billing" style={{ color: 'var(--orange-600)', fontSize: '0.75rem', fontWeight: '700', textDecoration: 'none' }}>VIEW ALL</Link>
+            <Link to="/admin/billing" style={{ color: 'var(--green-600)', fontSize: '0.75rem', fontWeight: '700', textDecoration: 'none' }}>VIEW ALL</Link>
           </div>
           <div style={{ padding: '0.5rem 0' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>

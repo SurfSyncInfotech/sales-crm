@@ -330,4 +330,38 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Permanent delete: removes the company and everything scoped to it. Cannot be undone.
+router.delete('/:id/permanent', async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const id = Number(req.params.id);
+    const [[company]] = await conn.query('SELECT id, name FROM companies WHERE id = ?', [id]);
+    if (!company) return res.status(404).json({ message: 'Company not found' });
+
+    await conn.beginTransaction();
+    for (const table of [
+      'leads',
+      'company_lead_integrations',
+      'company_form_urls',
+      'company_channel_connections',
+      'facebook_connect_sessions',
+      'payments',
+      'company_activity_logs',
+    ]) {
+      await conn.query(`DELETE FROM ${table} WHERE company_id = ?`, [id]);
+    }
+    await conn.query('DELETE FROM users WHERE company_id = ?', [id]);
+    await conn.query('DELETE FROM companies WHERE id = ?', [id]);
+    await conn.commit();
+
+    res.json({ message: `Company ${company.name} deleted` });
+  } catch (err) {
+    await conn.rollback();
+    console.error(err);
+    res.status(500).json({ message: 'Failed to delete company' });
+  } finally {
+    conn.release();
+  }
+});
+
 module.exports = router;

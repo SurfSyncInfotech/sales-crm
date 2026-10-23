@@ -113,6 +113,8 @@ async function runCli() {
     const ran = await migrate({ seed: true, silent: false });
     const { ensureFacebookSchema } = require('./migrate_facebook');
     await ensureFacebookSchema({ silent: false });
+    const { ensureCrmSchema } = require('./migrate_crm');
+    await ensureCrmSchema({ silent: false });
     console.log(`Done. Ran ${ran.length} SQL file(s): ${ran.join(', ') || 'none'}`);
   } catch (err) {
     console.error('Setup failed:', err.message);

@@ -1,5 +1,8 @@
 const crypto = require('crypto');
 const pool = require('../config/db');
+const { getFirstStageId, logActivity } = require('./pipeline');
+const { autoAssignLead } = require('./assignment');
+const { sendWelcomeIfEnabled } = require('./whatsapp');
 
 function makeLeadCode() {
   const stamp = Date.now().toString(36).toUpperCase();
@@ -214,9 +217,30 @@ async function createLeadFromPayload({
     [companyId, sourceId]
   );
 
+  const stageId = await getFirstStageId(companyId).catch(() => null);
+  if (stageId) await pool.query('UPDATE leads SET stage_id = ? WHERE id = ?', [stageId, result.insertId]);
+  await logActivity({
+    companyId,
+    leadId: result.insertId,
+    type: 'created',
+    summary: `Lead created${sourceName ? ` via ${sourceName}` : ''}`,
+    actorId: createdBy,
+  });
+
+  const [created] = await pool.query('SELECT * FROM leads WHERE id = ?', [result.insertId]);
+  let sourceSlug = null;
+  if (sourceId) {
+    const [src] = await pool.query('SELECT slug FROM lead_sources WHERE id = ? LIMIT 1', [sourceId]);
+    sourceSlug = src[0]?.slug || null;
+  }
+  await autoAssignLead(created[0], { payload, sourceSlug });
+
   const [rows] = await pool.query('SELECT * FROM leads WHERE id = ?', [result.insertId]);
   const lead = rows[0];
   lead.tags = typeof lead.tags === 'string' ? JSON.parse(lead.tags || '[]') : lead.tags || [];
+
+  // Welcome template goes out after assignment so {{salesperson}} resolves; never blocks ingest.
+  sendWelcomeIfEnabled(lead);
   return lead;
 }
 

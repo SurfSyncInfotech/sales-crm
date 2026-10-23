@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { companyPortalApi } from '../api/client';
+import { KanbanSquare, CheckSquare, FileText, Workflow } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+
+const QUICK = [
+  { to: '/company/pipeline', icon: KanbanSquare, title: 'Pipeline', text: 'Move leads through stages' },
+  { to: '/company/tasks', icon: CheckSquare, title: 'Tasks', text: 'Follow-ups and reminders' },
+  { to: '/company/quotations', icon: FileText, title: 'Quotations', text: 'Requests and approvals' },
+  { to: '/company/automation', icon: Workflow, title: 'Automation', text: 'See the lead journey' },
+];
 
 export default function CompanyDashboardPage() {
   const { user } = useAuth('company');
@@ -76,6 +84,20 @@ export default function CompanyDashboardPage() {
           <strong>{company.subscription_end || '—'}</strong>
           <small>Ends on</small>
         </article>
+      </section>
+
+      <section className="wf-quick">
+        {QUICK.map(({ to, icon: Icon, title, text }) => (
+          <Link key={to} to={to}>
+            <span className="ui-stat-icon">
+              <Icon size={18} />
+            </span>
+            <div>
+              <strong>{title}</strong>
+              <small>{text}</small>
+            </div>
+          </Link>
+        ))}
       </section>
 
       <section className="panel">

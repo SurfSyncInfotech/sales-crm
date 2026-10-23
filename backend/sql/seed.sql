@@ -5,7 +5,7 @@ INSERT INTO users (name, email, password_hash, role, is_active)
 VALUES (
   'SurfSync Superadmin',
   'admin@surfsync.studio',
-  '$2a$10$8K1p/a0dL1LXMIgoEDFrwOfMQkHnGHqHqHqHqHqHqHqHqHqHqHqHq',
+  '$2b$10$L8cilZnqi/8E/etc91UriO.XOKGjDwhk.4mptGk9dT5LlE07V8mRS',
   'superadmin',
   1
 )

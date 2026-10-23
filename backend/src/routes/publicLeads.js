@@ -4,6 +4,11 @@ const {
   resolveIntegrationByWebhookKey,
 } = require('../services/leadIngest');
 const {
+  getSettings: getWhatsappSettings,
+  findLeadByPhone,
+  handleWebhook: handleWhatsappWebhook,
+} = require('../services/whatsapp');
+const {
   verifyState,
   exchangeCodeForToken,
   exchangeLongLivedToken,
@@ -266,11 +271,20 @@ router.post(
       return res.status(201).json({ ok: true, lead_code: lead.lead_code });
     }
 
+    const integration = await resolveIntegrationByWebhookKey(req.params.webhookKey, ['whatsapp']);
+    const settings = await getWhatsappSettings(integration.company_id);
     const created = [];
     for (const entry of body.entry || []) {
       for (const change of entry.changes || []) {
         const value = change.value || {};
         for (const message of value.messages || []) {
+          // Replies from a known lead are logged by handleWebhook; only unknown senders become new leads.
+          const known = await findLeadByPhone(
+            integration.company_id,
+            message.from,
+            settings?.default_country_code || '91'
+          );
+          if (known) continue;
           const contact = (value.contacts || [])[0] || {};
           const payload = {
             name: contact.profile?.name || message.from,
@@ -286,6 +300,9 @@ router.post(
         }
       }
     }
+
+    // Inbound messages + delivery statuses (sent/delivered/read/failed) → message log and lead timeline.
+    await handleWhatsappWebhook(integration.company_id, body);
 
     res.status(200).json({ ok: true, created });
   })
