@@ -1,3 +1,4 @@
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5010/api';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { authApi, clearToken, getToken, setToken, TOKEN_KEYS } from '../api/client';
 
@@ -17,6 +18,10 @@ async function restoreSession(portal) {
       clearToken(portal);
       return null;
     }
+    if (portal === 'sales' && !['salesperson', 'company_admin'].includes(user.role)) {
+      clearToken(portal);
+      return null;
+    }
     return user;
   } catch {
     clearToken(portal);
@@ -24,48 +29,22 @@ async function restoreSession(portal) {
   }
 }
 
-function migrateLegacyToken() {
-  const legacy = localStorage.getItem('ss_token');
-  if (!legacy) return;
-  // Keep it temporarily for restore; cleanup after sessions load
-  return legacy;
-}
-
 export function AuthProvider({ children }) {
   const [superadminUser, setSuperadminUser] = useState(null);
   const [companyUser, setCompanyUser] = useState(null);
+  const [salesUser, setSalesUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const legacy = migrateLegacyToken();
-
     async function boot() {
-      // If only legacy token exists, probe once and place into the right slot
-      if (legacy && !getToken('superadmin') && !getToken('company')) {
-        localStorage.setItem(TOKEN_KEYS.superadmin, legacy);
-        const probed = await restoreSession('superadmin');
-        if (probed) {
-          if (probed.role === 'superadmin') {
-            setSuperadminUser(probed);
-          } else if (['company_admin', 'salesperson'].includes(probed.role)) {
-            clearToken('superadmin');
-            setToken('company', legacy);
-            const company = await restoreSession('company');
-            setCompanyUser(company);
-          } else {
-            clearToken('superadmin');
-          }
-        }
-        localStorage.removeItem('ss_token');
-      } else {
-        localStorage.removeItem('ss_token');
-        const [admin, company] = await Promise.all([
-          restoreSession('superadmin'),
-          restoreSession('company'),
-        ]);
-        setSuperadminUser(admin);
-        setCompanyUser(company);
-      }
+      const [admin, company, sales] = await Promise.all([
+        restoreSession('superadmin'),
+        restoreSession('company'),
+        restoreSession('sales'),
+      ]);
+      setSuperadminUser(admin);
+      setCompanyUser(company);
+      setSalesUser(sales);
       setLoading(false);
     }
 
@@ -78,6 +57,8 @@ export function AuthProvider({ children }) {
 
     if (portal === 'company') {
       setCompanyUser(data.user);
+    } else if (portal === 'sales') {
+      setSalesUser(data.user);
     } else {
       setSuperadminUser(data.user);
     }
@@ -85,10 +66,17 @@ export function AuthProvider({ children }) {
     return data.user;
   }
 
+  function setSalesSession(token, user) {
+    setToken('sales', token);
+    setSalesUser(user);
+  }
+
   function logout(portal = 'superadmin') {
     clearToken(portal);
     if (portal === 'company') {
       setCompanyUser(null);
+    } else if (portal === 'sales') {
+      setSalesUser(null);
     } else {
       setSuperadminUser(null);
     }
@@ -98,13 +86,18 @@ export function AuthProvider({ children }) {
     () => ({
       superadminUser,
       companyUser,
+      salesUser,
       loading,
       login,
+      setSalesSession,
       logout,
-      // Convenience aliases used across pages — prefer explicit portal helpers below
-      getUser: (portal) => (portal === 'company' ? companyUser : superadminUser),
+      getUser: (portal) => {
+        if (portal === 'sales') return salesUser;
+        if (portal === 'company') return companyUser;
+        return superadminUser;
+      },
     }),
-    [superadminUser, companyUser, loading]
+    [superadminUser, companyUser, salesUser, loading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -116,12 +109,25 @@ export function useAuth(portal) {
     throw new Error('useAuth must be used within AuthProvider');
   }
 
+  if (portal === 'sales') {
+    return {
+      user: ctx.salesUser,
+      loading: ctx.loading,
+      login: (email, password) => ctx.login(email, password, 'sales'),
+      logout: () => ctx.logout('sales'),
+      setSalesSession: ctx.setSalesSession,
+      portal: 'sales',
+      salesUser: ctx.salesUser,
+    };
+  }
+
   if (portal === 'company') {
     return {
       user: ctx.companyUser,
       loading: ctx.loading,
       login: (email, password) => ctx.login(email, password, 'company'),
       logout: () => ctx.logout('company'),
+      setSalesSession: ctx.setSalesSession,
       portal: 'company',
       superadminUser: ctx.superadminUser,
       companyUser: ctx.companyUser,

@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { CheckSquare, FileText, Inbox, KanbanSquare, LayoutDashboard, Settings, Users, Workflow } from 'lucide-react';
+import { CheckSquare, FileText, Inbox, KanbanSquare, LayoutDashboard, Settings, Users, Workflow, Building, AlertCircle, Info } from 'lucide-react';
 import BrandLogo from './BrandLogo';
 
 const links = [
@@ -216,7 +216,7 @@ export default function CompanyLayout() {
                 <tr>
                   <td>
                     <div class="bank-box">
-                      <h4>🏦 Bank Details</h4>
+                      <h4>Bank Details</h4>
                       <strong>Name:</strong> SURFSYNC INFOTECH PVT. LTD.<br/>
                       <strong>IFSC Code:</strong> SBIN0001483<br/>
                       <strong>Account No:</strong> 45182936194<br/>
@@ -275,8 +275,8 @@ export default function CompanyLayout() {
                 <small style={{ color: '#718096', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase' }}>INVOICE NUMBER</small>
                 <div style={{ fontSize: '1.2rem', fontWeight: '700' }}>#{pendingInvoice.invoice_number}</div>
               </div>
-              <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#d97706', border: '1px solid #fde68a', fontWeight: '700', padding: '0.35rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                ⚠️ PAYMENT PENDING
+              <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#d97706', border: '1px solid #fde68a', fontWeight: '700', padding: '0.35rem 0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <AlertCircle size={14} /> PAYMENT PENDING
               </span>
             </div>
             
@@ -303,7 +303,7 @@ export default function CompanyLayout() {
           {/* Card 2: UPI details */}
           <div style={{ border: '1px solid #b3d7ff', backgroundColor: '#f0f7ff', borderRadius: '8px', padding: '1.25rem' }}>
             <h4 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#0056b3' }}>
-              <span>🏦</span> SurfSync Bank & UPI Transfer Details
+              <Building size={16} /> SurfSync Bank & UPI Transfer Details
             </h4>
             <div style={{ display: 'grid', gap: '0.5rem', fontSize: '0.9rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -330,8 +330,9 @@ export default function CompanyLayout() {
           </div>
 
           {/* Notice Card */}
-          <div style={{ border: '1px solid #ffeeba', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '8px', padding: '1rem', fontSize: '0.85rem', lineHeight: '1.4' }}>
-            <strong>💡 Note:</strong> Kripya upar diya gaya Bank/UPI details par payment karein. SuperAdmin aapka payment confirm (Mark Paid) karte hi aapka CRM account activate kar dega.
+          <div style={{ border: '1px solid #ffeeba', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '8px', padding: '1rem', fontSize: '0.85rem', lineHeight: '1.4', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+            <Info size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+            <div><strong>Note:</strong> Kripya upar diya gaya Bank/UPI details par payment karein. SuperAdmin aapka payment confirm (Mark Paid) karte hi aapka CRM account activate kar dega.</div>
           </div>
 
           {/* Actions */}

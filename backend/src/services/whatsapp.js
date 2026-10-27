@@ -76,7 +76,7 @@ async function loadLead(companyId, leadId) {
  * Send one WhatsApp message to a lead and record it. `payload` is the full Pinbot body
  * minus `to` (built by the caller via pinbot.build*), `summary` is what the timeline shows.
  */
-async function sendToLead({ companyId, leadId, build, msgType, body, purpose = null, sentBy = null }) {
+async function sendToLead({ companyId, leadId, build, msgType, body, purpose = null, sentBy = null, toPhone = null }) {
   const settings = await getSettings(companyId);
   if (!settings || !settings.is_active || !settings.api_key || !settings.phone_number_id) {
     const err = new Error('WhatsApp is not configured for this company');
@@ -94,7 +94,7 @@ async function sendToLead({ companyId, leadId, build, msgType, body, purpose = n
     err.status = 409;
     throw err;
   }
-  const to = normalizePhone(lead.phone, settings.default_country_code);
+  const to = normalizePhone(toPhone || lead.phone, settings.default_country_code);
   if (!to) {
     const err = new Error('Lead has no phone number');
     err.status = 400;
@@ -249,6 +249,16 @@ async function handleWebhook(companyId, body) {
         );
 
         if (lead) {
+          // Auto-cancel future pending reminders because lead has actively replied
+          try {
+            await pool.query(
+              "UPDATE lead_reminders SET status = 'cancelled', notes = 'Auto-cancelled: Lead replied on WhatsApp' WHERE lead_id = ? AND status = 'pending'",
+              [lead.id]
+            );
+          } catch (remErr) {
+            console.error('[WhatsApp] Error cancelling reminders on reply:', remErr.message);
+          }
+
           await logActivity({
             companyId,
             leadId: lead.id,

@@ -1,22 +1,30 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5010/api';
 
 export const TOKEN_KEYS = {
   superadmin: 'ss_token_superadmin',
   company: 'ss_token_company',
+  sales: 'ss_token_sales',
 };
 
 export function resolvePortal(explicit) {
-  if (explicit === 'superadmin' || explicit === 'company') return explicit;
+  if (explicit === 'superadmin' || explicit === 'company' || explicit === 'sales') return explicit;
   if (typeof window === 'undefined') return 'superadmin';
   const path = window.location.pathname;
   if (path.startsWith('/admin') || path === '/login') return 'superadmin';
+  if (path.startsWith('/sales')) return 'sales';
   if (path.startsWith('/company') || path.startsWith('/c/')) return 'company';
   return 'superadmin';
 }
 
 export function getToken(portal) {
-  const key = TOKEN_KEYS[resolvePortal(portal)];
-  return localStorage.getItem(key);
+  const target = portal ? (TOKEN_KEYS[portal] ? portal : resolvePortal(portal)) : resolvePortal();
+  const key = TOKEN_KEYS[target];
+  let token = key ? localStorage.getItem(key) : null;
+  if (!token) {
+    // Seamless fallback for company admins accessing sales endpoints or vice-versa
+    token = localStorage.getItem(TOKEN_KEYS.company) || localStorage.getItem(TOKEN_KEYS.sales) || localStorage.getItem(TOKEN_KEYS.superadmin);
+  }
+  return token;
 }
 
 export function setToken(portal, token) {
@@ -94,9 +102,14 @@ export const paymentsApi = {
 export const companyPortalApi = {
   dashboard: () => api('/company/dashboard', { portal: 'company' }),
   team: () => api('/company/team', { portal: 'company' }),
+  domains: () => api('/company/domains', { portal: 'company' }),
   addMember: (body) => api('/company/team', { method: 'POST', body, portal: 'company' }),
   setMemberStatus: (id, is_active) =>
     api(`/company/team/${id}/status`, { method: 'PATCH', body: { is_active }, portal: 'company' }),
+  updateMemberDomain: (id, domain) =>
+    api(`/company/team/${id}/domain`, { method: 'PATCH', body: { domain }, portal: 'company' }),
+  impersonateSales: (memberId) =>
+    api(`/company/team/${memberId}/impersonate`, { method: 'POST', portal: 'company' }),
   leadSources: () => api('/company/leads/sources', { portal: 'company' }),
   toggleLeadSource: (sourceId, is_enabled) =>
     api(`/company/leads/sources/${sourceId}`, {
@@ -149,8 +162,59 @@ export const companyPortalApi = {
   },
   createLead: (body) => api('/company/leads', { method: 'POST', body, portal: 'company' }),
   updateLead: (id, body) => api(`/company/leads/${id}`, { method: 'PATCH', body, portal: 'company' }),
+  previewExcel: (body) => api('/company/leads/preview-excel', { method: 'POST', body, portal: 'company' }),
   uploadLeads: (body) => api('/company/leads/upload', { method: 'POST', body, portal: 'company' }),
   getUrls: (sourceId) => api(`/company/leads/urls${sourceId ? `?source_id=${sourceId}` : ''}`, { portal: 'company' }),
   addUrl: (body) => api('/company/leads/urls', { method: 'POST', body, portal: 'company' }),
   deleteUrl: (id) => api(`/company/leads/urls/${id}`, { method: 'DELETE', portal: 'company' }),
+  whatsappSalespersons: () => api('/company/whatsapp/salespersons', { portal: 'company' }),
+  whatsappConversations: (salespersonId = '', q = '') => {
+    const qs = new URLSearchParams();
+    if (salespersonId && salespersonId !== 'all') qs.set('salesperson_id', salespersonId);
+    if (q) qs.set('q', q);
+    const query = qs.toString();
+    return api(`/company/whatsapp/conversations${query ? `?${query}` : ''}`, { portal: 'company' });
+  },
+  whatsappMessages: (leadId) => api(`/company/whatsapp/conversations/${leadId}/messages`, { portal: 'company' }),
+  whatsappSendMessage: (leadId, body) =>
+    api(`/company/whatsapp/conversations/${leadId}/send`, { method: 'POST', body, portal: 'company' }),
+  whatsappSendToLead: (leadId, body) =>
+    api(`/company/whatsapp/leads/${leadId}/send`, { method: 'POST', body, portal: 'company' }),
+  uploadQuotationPdf: (body) =>
+    api('/company/leads/upload-quotation-pdf', { method: 'POST', body, portal: 'company' }),
+  sendQuotationEmail: (leadId, body) =>
+    api(`/company/leads/${leadId}/send-quotation-email`, { method: 'POST', body, portal: 'company' }),
+  sendDemoEmail: (leadId, body) =>
+    api(`/company/leads/${leadId}/send-demo-email`, { method: 'POST', body, portal: 'company' }),
 };
+
+export const salesApi = {
+  stats: () => api('/sales/stats', { portal: 'sales' }),
+  leads: (view) => api(`/sales/leads${view ? `?view=${view}` : ''}`, { portal: 'sales' }),
+  createLead: (body) => api('/sales/leads', { method: 'POST', body, portal: 'sales' }),
+  pipeline: () => api('/sales/pipeline', { portal: 'sales' }),
+  claimLead: (id) => api(`/sales/leads/${id}/claim`, { method: 'POST', portal: 'sales' }),
+  updateStatus: (id, body) => api(`/sales/leads/${id}/status`, { method: 'PUT', body, portal: 'sales' }),
+  reminders: () => api('/sales/reminders', { portal: 'sales' }),
+  activity: () => api('/sales/activity', { portal: 'sales' }),
+  followups: () => api('/sales/followups', { portal: 'sales' }),
+  feedbacks: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') qs.set(key, val);
+    });
+    const query = qs.toString();
+    return api(`/sales/feedbacks${query ? `?${query}` : ''}`, { portal: 'sales' });
+  },
+};
+
+export const salesAuthApi = {
+  sendForgotOtp: (mobile) =>
+    api('/auth/sales/forgot-password/send-otp', { method: 'POST', body: { mobile } }),
+  verifyForgotOtp: (mobile, otp) =>
+    api('/auth/sales/forgot-password/verify-otp', { method: 'POST', body: { mobile, otp } }),
+  resetPassword: (verifyToken, newPassword) =>
+    api('/auth/sales/forgot-password/reset-password', { method: 'POST', body: { verifyToken, newPassword } }),
+};
+
+export const companyApi = companyPortalApi;

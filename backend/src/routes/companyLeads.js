@@ -1,7 +1,10 @@
 const express = require('express');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const XLSX = require('xlsx');
 const pool = require('../config/db');
+const mailer = require('../services/mailer');
 const { authRequired, requireCompanyUser } = require('../middleware/auth');
 const { createLeadFromPayload, parseTags } = require('../services/leadIngest');
 const { setLeadStage, logActivity } = require('../services/pipeline');
@@ -568,6 +571,103 @@ router.post('/', async (req, res) => {
   }
 });
 
+function sanitizeExcelRow(rawRow) {
+  const normalized = {};
+  for (const [key, val] of Object.entries(rawRow || {})) {
+    const cleanKey = String(key || '').trim().toLowerCase().replace(/[\s_-]+/g, '_');
+    normalized[cleanKey] = val !== undefined && val !== null ? String(val).trim() : '';
+  }
+
+  // Strictly extract ONLY the 5 allowed fields:
+  // 1. lead_id
+  // 2. Name
+  // 3. Phone
+  // 4. Email
+  // 5. company_name
+  const lead_id = normalized.lead_id || normalized.id || normalized.leadid || null;
+  const name = normalized.name || normalized.full_name || normalized.client_name || normalized.lead_name || '';
+  const phone = normalized.phone || normalized.mobile || normalized.phone_number || normalized.contact || normalized.contact_number || '';
+  const email = normalized.email || normalized.email_address || normalized.mail || '';
+  const company_name = normalized.company_name || normalized.company || normalized.lead_company || normalized.business_name || '';
+
+  return {
+    lead_id,
+    name,
+    phone,
+    email,
+    company_name,
+  };
+}
+
+router.get('/upload/template', (req, res) => {
+  const csvContent =
+    'lead_id,Name,Phone,Email,company_name\r\n' +
+    'LID-101,Rahul Sharma,9876543210,rahul@example.com,Sharma Tech\r\n' +
+    'LID-102,Priya Patel,9876543211,priya@example.com,Patel Enterprises\r\n';
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="leads_upload_template.csv"');
+  return res.send(csvContent);
+});
+
+router.post('/preview-excel', async (req, res) => {
+  try {
+    if (req.user.role !== 'company_admin') {
+      return res.status(403).json({ message: 'Only company admins can preview lead files' });
+    }
+
+    const { file_base64, file_name } = req.body || {};
+    if (!file_base64) {
+      return res.status(400).json({ message: 'No spreadsheet file provided for preview' });
+    }
+
+    const base64Data = String(file_base64).includes(',')
+      ? String(file_base64).split(',').pop()
+      : String(file_base64);
+    const buffer = Buffer.from(base64Data, 'base64');
+    const rawRows = rowsFromWorkbook(buffer);
+
+    if (!rawRows || !rawRows.length) {
+      return res.status(400).json({ message: 'No rows or readable data found in the spreadsheet' });
+    }
+
+    let validCount = 0;
+    let invalidCount = 0;
+
+    const previewRows = rawRows.map((rawRow, idx) => {
+      const clean = sanitizeExcelRow(rawRow);
+      const isValid = Boolean(clean.name || clean.phone);
+      if (isValid) {
+        validCount += 1;
+      } else {
+        invalidCount += 1;
+      }
+
+      return {
+        rowNumber: idx + 1,
+        lead_id: clean.lead_id || '',
+        name: clean.name || '',
+        phone: clean.phone || '',
+        email: clean.email || '',
+        company_name: clean.company_name || '',
+        isValid,
+        issue: isValid ? null : 'Missing both Name and Phone',
+      };
+    });
+
+    res.json({
+      file_name: file_name || 'Spreadsheet File',
+      total_rows: rawRows.length,
+      valid_count: validCount,
+      invalid_count: invalidCount,
+      rows: previewRows,
+    });
+  } catch (err) {
+    console.error('Failed to preview excel spreadsheet:', err);
+    res.status(500).json({ message: err.message || 'Failed to parse spreadsheet file' });
+  }
+});
+
 router.post('/upload', async (req, res) => {
   try {
     if (req.user.role !== 'company_admin') {
@@ -614,29 +714,54 @@ router.post('/upload', async (req, res) => {
     const errors = [];
 
     for (let i = 0; i < rows.length; i += 1) {
-      const row = rows[i] || {};
+      const rawRow = rows[i] || {};
+      const cleanRow = sanitizeExcelRow(rawRow);
+
+      // Validate required fields: At least Name or Phone must be provided
+      if (!cleanRow.name && !cleanRow.phone) {
+        errors.push({
+          row: i + 1,
+          message: 'Both Name and Phone are missing in this row',
+          data: cleanRow,
+        });
+        continue;
+      }
+
       try {
         const lead = await createLeadFromPayload({
           companyId,
           sourceId: integration.source_id,
           sourceName: integration.source_name,
           payload: {
-            ...row,
-            campaign: row.campaign || file_name || 'Excel Upload',
+            external_id: cleanRow.lead_id || null,
+            name: cleanRow.name,
+            phone: cleanRow.phone,
+            email: cleanRow.email,
+            lead_company: cleanRow.company_name,
+            campaign: file_name || 'Excel Upload',
           },
           createdBy: req.user.id,
           overrides: {
-            campaign: row.campaign || file_name || 'Excel Upload',
+            external_id: cleanRow.lead_id || null,
+            campaign: file_name || 'Excel Upload',
           },
+          externalId: cleanRow.lead_id || null,
         });
-        created.push({ row: i + 1, lead_id: lead.id, lead_code: lead.lead_code, name: lead.name });
+        created.push({
+          row: i + 1,
+          lead_id: lead.id,
+          lead_code: lead.lead_code,
+          name: lead.name,
+          phone: lead.phone,
+          duplicate: lead.duplicate || false,
+        });
       } catch (err) {
-        errors.push({ row: i + 1, message: err.message || 'Failed to create lead', data: row });
+        errors.push({ row: i + 1, message: err.message || 'Failed to create lead', data: cleanRow });
       }
     }
 
     res.status(201).json({
-      message: 'Upload processed',
+      message: `Processed ${rows.length} rows (${created.length} imported, ${errors.length} errors)`,
       created_count: created.length,
       created,
       errors,
@@ -676,6 +801,11 @@ router.patch('/:id', async (req, res) => {
       tags,
       status,
       notes,
+      deal_value,
+      quotation_pdf_url,
+      demo_link,
+      demo_notes,
+      demo_sent_at,
     } = req.body;
 
     let sourceId = typeof source_id === 'undefined' ? existing.source_id : source_id ? Number(source_id) : null;
@@ -705,7 +835,12 @@ router.patch('/:id', async (req, res) => {
         assigned_to = ?,
         tags = COALESCE(?, tags),
         status = COALESCE(?, status),
-        notes = COALESCE(?, notes)
+        notes = COALESCE(?, notes),
+        deal_value = COALESCE(?, deal_value),
+        quotation_pdf_url = COALESCE(?, quotation_pdf_url),
+        demo_link = COALESCE(?, demo_link),
+        demo_notes = COALESCE(?, demo_notes),
+        demo_sent_at = COALESCE(?, demo_sent_at)
        WHERE id = ? AND company_id = ?`,
       [
         name ?? null,
@@ -720,10 +855,23 @@ router.patch('/:id', async (req, res) => {
         tagList ? JSON.stringify(tagList) : null,
         status ?? null,
         notes ?? null,
+        deal_value !== undefined && deal_value !== null && deal_value !== '' ? Number(deal_value) : null,
+        quotation_pdf_url || null,
+        demo_link || null,
+        demo_notes || null,
+        demo_sent_at ? new Date(demo_sent_at) : null,
         leadId,
         companyId,
       ]
     );
+
+    if (demo_link) {
+      await pool.query(
+        `INSERT INTO lead_feedbacks (company_id, lead_id, user_id, from_status, to_status, feedback)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [companyId, leadId, req.user.id, existing.status || 'demo_requested', status || existing.status || 'demo_sent', `Admin provided demo website link: ${demo_link}`]
+      );
+    }
 
     if (status && status !== existing.status) {
       const [stageRows] = await pool.query(
@@ -733,6 +881,22 @@ router.patch('/:id', async (req, res) => {
       );
       if (stageRows[0]) {
         await setLeadStage({ companyId, leadId, stageId: stageRows[0].id, actorId: req.user.id });
+      }
+
+      if (status === 'quotation_sent') {
+        await pool.query("UPDATE leads SET quotation_sent_at = NOW() WHERE id = ?", [leadId]);
+        await pool.query("UPDATE lead_reminders SET status = 'cancelled' WHERE lead_id = ? AND status = 'pending'", [leadId]);
+        const repId = existing.assigned_to || existing.claimed_by || req.user.id;
+        const quoteFollowupDays = [2, 5, 10, 21];
+        for (const d of quoteFollowupDays) {
+          await pool.query(
+            `INSERT INTO lead_reminders (company_id, lead_id, salesperson_id, phase, day_number, scheduled_for, status)
+             VALUES (?, ?, ?, 'phase_2_post_quote', ?, DATE_ADD(NOW(), INTERVAL ? DAY), 'pending')`,
+            [companyId, leadId, repId, d, d]
+          );
+        }
+      } else if (status === 'quotation_requested') {
+        await pool.query("UPDATE lead_reminders SET status = 'cancelled' WHERE lead_id = ? AND status = 'pending'", [leadId]);
       }
     }
     const newAssignee = typeof assigned_to === 'undefined' ? existing.assigned_to : assigned_to || null;
@@ -762,6 +926,150 @@ router.patch('/:id', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Failed to update lead' });
+  }
+});
+
+router.post('/upload-quotation-pdf', async (req, res) => {
+  try {
+    const { filename, base64Data } = req.body || {};
+    if (!base64Data) return res.status(400).json({ message: 'No file data provided' });
+    const uploadsDir = path.resolve(__dirname, '../../uploads/quotations');
+    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+    const safeName = `${Date.now()}-${(filename || 'quotation.pdf').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const filePath = path.join(uploadsDir, safeName);
+    const cleanBase64 = base64Data.replace(/^data:[^;]+;base64,/, '');
+    fs.writeFileSync(filePath, Buffer.from(cleanBase64, 'base64'));
+    const url = `/uploads/quotations/${safeName}`;
+    res.json({ ok: true, url, filename: safeName });
+  } catch (err) {
+    console.error('PDF upload error:', err);
+    res.status(500).json({ message: 'Failed to upload quotation PDF' });
+  }
+});
+
+router.post('/:id/send-quotation-email', async (req, res) => {
+  try {
+    const companyId = req.user.company_id;
+    const leadId = Number(req.params.id);
+    const { to, subject, body, pdfUrl, pdfFilename, dealValue } = req.body || {};
+
+    if (!to || !to.trim()) {
+      return res.status(400).json({ message: 'Recipient email is required' });
+    }
+    if (!subject || !subject.trim()) {
+      return res.status(400).json({ message: 'Email subject is required' });
+    }
+
+    const [existingRows] = await pool.query('SELECT * FROM leads WHERE id = ? AND company_id = ? LIMIT 1', [leadId, companyId]);
+    const lead = existingRows[0];
+    if (!lead) return res.status(404).json({ message: 'Lead not found' });
+
+    // 1. Send via Hostinger SMTP
+    await mailer.sendQuotationEmail({
+      to: to.trim(),
+      subject: subject.trim(),
+      body: body || '',
+      pdfUrl: pdfUrl || null,
+      pdfFilename: pdfFilename || null,
+    });
+
+    // 2. Update lead status to quotation_sent + deal_value + email + quotation_pdf_url
+    await pool.query(
+      `UPDATE leads 
+       SET status = 'quotation_sent', 
+           email = ?, 
+           deal_value = COALESCE(?, deal_value), 
+           quotation_pdf_url = COALESCE(?, quotation_pdf_url)
+       WHERE id = ? AND company_id = ?`,
+      [to.trim(), dealValue ? Number(dealValue) : null, pdfUrl || null, leadId, companyId]
+    );
+
+    // 3. Clear old reminders and schedule Phase 2 follow-ups
+    await pool.query("UPDATE lead_reminders SET status = 'cancelled' WHERE lead_id = ? AND status = 'pending'", [leadId]);
+    const repId = lead.claimed_by || lead.assigned_to || req.user.id;
+    const quoteFollowupDays = [2, 5, 10, 21];
+    for (const d of quoteFollowupDays) {
+      await pool.query(
+        `INSERT INTO lead_reminders (company_id, lead_id, salesperson_id, phase, day_number, scheduled_for, status)
+         VALUES (?, ?, ?, 'phase_2_post_quote', ?, DATE_ADD(NOW(), INTERVAL ? DAY), 'pending')`,
+        [companyId, leadId, repId, d, d]
+      );
+    }
+
+    // 4. Log activity
+    await logActivity({
+      companyId,
+      leadId,
+      type: 'email_sent',
+      summary: `Quotation email sent to ${to.trim()} with subject "${subject.trim()}"`,
+      meta: { subject, pdfUrl, to: to.trim() },
+      actorId: req.user.id,
+    });
+
+    res.json({ ok: true, message: 'Quotation email sent successfully with attached PDF!' });
+  } catch (err) {
+    console.error('Send quotation email error:', err);
+    res.status(500).json({ message: err.message || 'Failed to send quotation email' });
+  }
+});
+
+router.post('/:id/send-demo-email', async (req, res) => {
+  try {
+    const companyId = req.user.company_id;
+    const leadId = Number(req.params.id);
+    const { to, subject, body, demoLink } = req.body || {};
+
+    if (!to || !to.trim()) {
+      return res.status(400).json({ message: 'Recipient email is required' });
+    }
+    if (!subject || !subject.trim()) {
+      return res.status(400).json({ message: 'Email subject is required' });
+    }
+
+    const [existingRows] = await pool.query('SELECT * FROM leads WHERE id = ? AND company_id = ? LIMIT 1', [leadId, companyId]);
+    const lead = existingRows[0];
+    if (!lead) return res.status(404).json({ message: 'Lead not found' });
+
+    // Send via Hostinger SMTP
+    await mailer.sendQuotationEmail({
+      to: to.trim(),
+      subject: subject.trim(),
+      body: body || '',
+    });
+
+    // Update lead with demo_link, demo_sent_at, email, status = 'followup'
+    await pool.query(
+      `UPDATE leads 
+       SET demo_link = COALESCE(?, demo_link),
+           demo_sent_at = NOW(),
+           email = ?,
+           status = 'followup',
+           updated_at = NOW()
+       WHERE id = ? AND company_id = ?`,
+      [demoLink || null, to.trim(), leadId, companyId]
+    );
+
+    // Record in lead feedbacks
+    await pool.query(
+      `INSERT INTO lead_feedbacks (company_id, lead_id, user_id, from_status, to_status, feedback)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [companyId, leadId, req.user.id, lead.status || 'demo_requested', 'followup', `Admin delivered demo website via Email to ${to.trim()}: ${demoLink || ''}`]
+    );
+
+    // Log activity
+    await logActivity({
+      companyId,
+      leadId,
+      type: 'email_sent',
+      summary: `Demo website email sent to ${to.trim()} with subject "${subject.trim()}"`,
+      meta: { subject, demoLink, to: to.trim() },
+      actorId: req.user.id,
+    });
+
+    res.json({ ok: true, message: 'Demo website email sent successfully!' });
+  } catch (err) {
+    console.error('Send demo email error:', err);
+    res.status(500).json({ message: err.message || 'Failed to send demo email' });
   }
 });
 

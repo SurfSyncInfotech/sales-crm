@@ -181,7 +181,7 @@ const getInvoicePrintHtml = (p, company, plan) => {
             <tr>
               <td>
                 <div class="bank-box">
-                  <h4>🏦 Bank Details</h4>
+                  <h4>Bank Details</h4>
                   <strong>Name:</strong> SURFSYNC INFOTECH PVT. LTD.<br/>
                   <strong>IFSC Code:</strong> SBIN0001483<br/>
                   <strong>Account No:</strong> 45182936194<br/>
@@ -851,7 +851,7 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
                 {/* Bank / Terms */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
                   <div style={{ border: '1px solid #b3d7ff', backgroundColor: '#f0f7ff', padding: '1rem', borderRadius: '6px', fontSize: '0.85rem' }}>
-                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#0056b3', fontWeight: '700' }}>🏦 Bank Details</h4>
+                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#0056b3', fontWeight: '700' }}>Bank Details</h4>
                     <strong>Name:</strong> SURFSYNC INFOTECH PVT. LTD.<br />
                     <strong>IFSC Code:</strong> SBIN0001483<br />
                     <strong>Account No:</strong> 45182936194<br />

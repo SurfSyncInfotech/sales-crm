@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const express = require('express');
 const cors = require('cors');
 const { migrate } = require('./setup');
@@ -13,6 +14,7 @@ const publicLeadsRoutes = require('./routes/publicLeads');
 const planRoutes = require('./routes/plans');
 const paymentRoutes = require('./routes/payments');
 const dashboardRoutes = require('./routes/dashboard');
+const salesRoutes = require('./routes/sales');
 
 async function start() {
   try {
@@ -34,6 +36,11 @@ async function start() {
   app.use(express.json({ limit: '8mb' }));
   app.use(express.urlencoded({ extended: true }));
 
+  const fs = require('fs');
+  const uploadsDir = path.resolve(__dirname, '../uploads');
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+  app.use('/uploads', express.static(uploadsDir));
+
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, product: 'SurfSync Studio' });
   });
@@ -44,6 +51,7 @@ async function start() {
   app.use('/api/company/crm', crmRoutes);
   app.use('/api/company/whatsapp', companyWhatsappRoutes);
   app.use('/api/company', companyPortalRoutes);
+  app.use('/api/sales', salesRoutes);
   app.use('/api/public/leads', publicLeadsRoutes);
   app.use('/api/plans', planRoutes);
   app.use('/api/payments', paymentRoutes);
@@ -56,7 +64,12 @@ async function start() {
 
   app.listen(PORT, () => {
     console.log(`SurfSync Studio API running on http://localhost:${PORT}`);
+    const { startReminderWorker } = require('./services/whatsapp_reminder_runner');
+    startReminderWorker(30000);
   });
 }
 
-start();
+start().catch((err) => {
+  console.error('Fatal startup error:', err);
+  process.exit(1);
+});

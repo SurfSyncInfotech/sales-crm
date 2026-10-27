@@ -3,8 +3,15 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import SuperadminLayout from './components/SuperadminLayout';
 import CompanyLayout from './components/CompanyLayout';
+import SalesLayout from './components/SalesLayout';
 import LoginPage from './pages/LoginPage';
 import CompanyLoginPage from './pages/CompanyLoginPage';
+import SalesLoginPage from './pages/SalesLoginPage';
+import SalesDashboardPage from './pages/SalesDashboardPage';
+import SalesLeadsPage from './pages/SalesLeadsPage';
+import SalesPipelinePage from './pages/SalesPipelinePage';
+import SalesRemindersPage from './pages/SalesRemindersPage';
+import SalesFeedbackPage from './pages/SalesFeedbackPage';
 import OverviewPage from './pages/OverviewPage';
 import CompaniesPage from './pages/CompaniesPage';
 import PlansPage from './pages/PlansPage';
@@ -24,7 +31,7 @@ import './index.css';
 import './ui.css';
 
 function HomeRedirect() {
-  const { superadminUser, companyUser, loading } = useAuth();
+  const { superadminUser, companyUser, salesUser, loading } = useAuth();
   if (loading) {
     return (
       <div className="boot-screen">
@@ -35,6 +42,7 @@ function HomeRedirect() {
   }
   if (superadminUser) return <Navigate to="/admin" replace />;
   if (companyUser) return <Navigate to="/company" replace />;
+  if (salesUser) return <Navigate to="/sales" replace />;
   return <Navigate to="/login" replace />;
 }
 
@@ -46,8 +54,10 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/company/login" element={<CompanyLoginPage />} />
           <Route path="/c/:slug/login" element={<CompanyLoginPage />} />
+          <Route path="/sales/login" element={<SalesLoginPage />} />
           <Route path="/capture/:webhookKey" element={<PublicLeadCapturePage />} />
 
+          {/* Superadmin Panel */}
           <Route
             element={<ProtectedRoute portal="superadmin" roles={['superadmin']} loginPath="/login" />}
           >
@@ -60,6 +70,7 @@ export default function App() {
             </Route>
           </Route>
 
+          {/* Company Admin Panel */}
           <Route
             element={
               <ProtectedRoute
@@ -85,6 +96,25 @@ export default function App() {
               <Route path="automation" element={<AutomationPage />} />
               <Route path="team" element={<CompanyTeamPage />} />
               <Route path="workflow-settings" element={<WorkflowSettingsPage />} />
+            </Route>
+          </Route>
+
+          {/* Dedicated Sales CRM Panel */}
+          <Route
+            element={
+              <ProtectedRoute
+                portal="sales"
+                roles={['salesperson', 'company_admin']}
+                loginPath="/sales/login"
+              />
+            }
+          >
+            <Route path="/sales" element={<SalesLayout />}>
+              <Route index element={<SalesDashboardPage />} />
+              <Route path="leads" element={<SalesLeadsPage />} />
+              <Route path="pipeline" element={<SalesPipelinePage />} />
+              <Route path="reminders" element={<SalesRemindersPage />} />
+              <Route path="feedback" element={<SalesFeedbackPage />} />
             </Route>
           </Route>
 

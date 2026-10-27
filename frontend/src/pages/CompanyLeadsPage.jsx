@@ -1,6 +1,37 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { companyPortalApi } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import {
+  ShieldCheck,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  MessageSquare,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Search,
+  Loader2,
+  Check,
+} from 'lucide-react';
+import WhatsAppChatModal from '../components/WhatsAppChatModal';
+
+function downloadSampleExcelTemplate() {
+  const csvContent =
+    'lead_id,Name,Phone,Email,company_name\r\n' +
+    'LID-101,Rahul Sharma,9876543210,rahul@example.com,Sharma Tech\r\n' +
+    'LID-102,Priya Patel,9876543211,priya@example.com,Patel Enterprises\r\n' +
+    'LID-103,Amit Verma,9876543212,amit@example.com,Verma & Sons\r\n';
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', 'leads_sample_template.csv');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
 
 const PAGE_SIZE = 10;
 
@@ -31,6 +62,37 @@ function formatDate(value) {
   });
 }
 
+function formatColumnTitle(key) {
+  if (key === 'lead_company') return 'Company';
+  return key
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function getLeadCellValue(lead, key) {
+  if (key === 'company' && lead.lead_company) return lead.lead_company;
+  if (key === 'lead_company' && lead.company) return lead.company;
+  if (lead[key] !== undefined && lead[key] !== null && lead[key] !== '') {
+    return String(lead[key]);
+  }
+
+  let payload = lead.raw_payload;
+  if (typeof payload === 'string') {
+    try {
+      payload = JSON.parse(payload);
+    } catch (e) {
+      payload = null;
+    }
+  }
+  if (payload && typeof payload === 'object') {
+    if (payload[key] !== undefined && payload[key] !== null && payload[key] !== '') {
+      return String(payload[key]);
+    }
+  }
+
+  return '—';
+}
+
 export default function CompanyLeadsPage() {
   const { user } = useAuth('company');
   const isAdmin = user?.role === 'company_admin';
@@ -50,6 +112,7 @@ export default function CompanyLeadsPage() {
   const [busy, setBusy] = useState(false);
   const [activeTab, setActiveTab] = useState('inbox');
   const [uploadMsg, setUploadMsg] = useState('');
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [fbConnections, setFbConnections] = useState([]);
   const [fbReady, setFbReady] = useState(false);
   const [fbStatus, setFbStatus] = useState('platform_not_ready');
@@ -60,6 +123,35 @@ export default function CompanyLeadsPage() {
   const [fbSelectedPages, setFbSelectedPages] = useState([]);
   const [fbSelectedAds, setFbSelectedAds] = useState([]);
   const [fbSelectedForms, setFbSelectedForms] = useState([]);
+
+  const [excelPreview, setExcelPreview] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [importingExcel, setImportingExcel] = useState(false);
+  const [previewSearch, setPreviewSearch] = useState('');
+  const [previewFilter, setPreviewFilter] = useState('all'); // 'all' | 'valid' | 'invalid'
+  const fileInputRef = useRef(null);
+
+  const previewFilteredRows = useMemo(() => {
+    if (!excelPreview || !Array.isArray(excelPreview.rows)) return [];
+    let list = excelPreview.rows;
+    if (previewFilter === 'valid') {
+      list = list.filter((r) => r.isValid);
+    } else if (previewFilter === 'invalid') {
+      list = list.filter((r) => !r.isValid);
+    }
+    if (previewSearch.trim()) {
+      const q = previewSearch.trim().toLowerCase();
+      list = list.filter(
+        (r) =>
+          String(r.name || '').toLowerCase().includes(q) ||
+          String(r.phone || '').toLowerCase().includes(q) ||
+          String(r.email || '').toLowerCase().includes(q) ||
+          String(r.company_name || '').toLowerCase().includes(q) ||
+          String(r.lead_id || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [excelPreview, previewFilter, previewSearch]);
 
   const [registeredUrls, setRegisteredUrls] = useState([]);
   const [newUrls, setNewUrlInput] = useState({});
@@ -194,6 +286,93 @@ export default function CompanyLeadsPage() {
     () => team.filter((m) => m.role === 'salesperson' || m.role === 'company_admin'),
     [team]
   );
+
+  const dynamicColumns = useMemo(() => {
+    if (!sourceFilter) {
+      return [
+        { key: 'lead_code', label: 'Lead ID', isLeadCode: true },
+        { key: 'name', label: 'Name' },
+        { key: 'phone', label: 'Phone' },
+        { key: 'email', label: 'Email' },
+        { key: 'lead_company', label: 'Company' },
+        { key: 'source_label', label: 'Source' },
+        { key: 'campaign', label: 'Campaign' },
+        { key: 'lead_date', label: 'Date', isDate: true },
+        { key: 'assigned_to', label: 'Assigned Salesperson', isSalesperson: true },
+        { key: 'tags', label: 'Tags', isTags: true },
+        { key: 'status', label: 'Status', isStatus: true },
+      ];
+    }
+
+    const cols = [{ key: 'lead_code', label: 'Lead ID', isLeadCode: true }];
+
+    const excludedKeys = new Set([
+      'id', 'company_id', 'lead_code', 'created_at', 'updated_at', 'source_id',
+      'source_name', 'source_label', 'source_slug', 'claimed_by', 'claimed_at',
+      'assigned_to', 'assigned_name', 'assigned_email', 'status', 'tags',
+      'deal_value', 'lost_reason', 'quotation_notes', 'quotation_scope',
+      'quotation_services', 'quotation_sent_at', 'quotation_requested_at',
+      'domain_id', 'duplicate', 'raw_payload', 'external_id', 'lead_date'
+    ]);
+
+    const priorityOrder = ['name', 'phone', 'email', 'company', 'lead_company', 'title', 'campaign', 'url', 'website', 'notes'];
+
+    const discoveredKeys = new Set();
+    leads.forEach((lead) => {
+      Object.keys(lead).forEach((k) => {
+        if (!excludedKeys.has(k) && lead[k] !== null && lead[k] !== undefined && lead[k] !== '' && lead[k] !== '—') {
+          discoveredKeys.add(k);
+        }
+      });
+
+      let payload = lead.raw_payload;
+      if (typeof payload === 'string') {
+        try {
+          payload = JSON.parse(payload);
+        } catch (e) {
+          payload = null;
+        }
+      }
+      if (payload && typeof payload === 'object') {
+        Object.keys(payload).forEach((k) => {
+          const val = payload[k];
+          if (!excludedKeys.has(k) && val !== null && val !== undefined && val !== '' && typeof val !== 'object') {
+            discoveredKeys.add(k);
+          }
+        });
+      }
+    });
+
+    const sortedKeys = Array.from(discoveredKeys).sort((a, b) => {
+      const idxA = priorityOrder.indexOf(a.toLowerCase());
+      const idxB = priorityOrder.indexOf(b.toLowerCase());
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b);
+    });
+
+    const addedKeys = new Set();
+    sortedKeys.forEach((key) => {
+      if (key === 'company' && addedKeys.has('lead_company')) return;
+      if (key === 'lead_company' && addedKeys.has('company')) return;
+      addedKeys.add(key);
+
+      cols.push({
+        key,
+        label: formatColumnTitle(key),
+        isDynamic: true,
+      });
+    });
+
+    cols.push(
+      { key: 'lead_date', label: 'Date', isDate: true },
+      { key: 'assigned_to', label: 'Assigned Salesperson', isSalesperson: true },
+      { key: 'status', label: 'Status', isStatus: true }
+    );
+
+    return cols;
+  }, [leads, sourceFilter]);
 
   function updateField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -404,30 +583,69 @@ export default function CompanyLeadsPage() {
     }
   }
 
-  async function handleExcelUpload(file) {
+  async function handleExcelFileSelect(file) {
     if (!file) return;
-    setBusy(true);
+    setPreviewLoading(true);
     setError('');
     setUploadMsg('');
+    setPreviewSearch('');
+    setPreviewFilter('all');
     try {
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.onerror = () => reject(new Error('Failed to read spreadsheet file'));
         reader.readAsDataURL(file);
       });
-      const result = await companyPortalApi.uploadLeads({
+      const preview = await companyPortalApi.previewExcel({
         file_base64: base64,
         file_name: file.name,
       });
+      setExcelPreview({
+        file,
+        fileBase64: base64,
+        fileName: file.name,
+        fileSize: (file.size / 1024).toFixed(1) + ' KB',
+        totalRows: preview.total_rows || 0,
+        validCount: preview.valid_count || 0,
+        invalidCount: preview.invalid_count || 0,
+        rows: preview.rows || [],
+      });
+    } catch (err) {
+      setError(err.message || 'Failed to read spreadsheet file');
+      setExcelPreview(null);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  async function handleConfirmExcelImport() {
+    if (!excelPreview || !excelPreview.fileBase64) return;
+    setImportingExcel(true);
+    setError('');
+    setUploadMsg('');
+    try {
+      const result = await companyPortalApi.uploadLeads({
+        file_base64: excelPreview.fileBase64,
+        file_name: excelPreview.fileName,
+      });
       setUploadMsg(`${result.message}${result.errors?.length ? ` (${result.errors.length} row errors)` : ''}`);
+      setExcelPreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       setActiveTab('inbox');
       await Promise.all([loadLeads(1), loadSources()]);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Failed to import leads from spreadsheet');
     } finally {
-      setBusy(false);
+      setImportingExcel(false);
     }
+  }
+
+  function handleCancelExcelPreview() {
+    setExcelPreview(null);
+    setPreviewSearch('');
+    setPreviewFilter('all');
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   return (
@@ -810,15 +1028,460 @@ export default function CompanyLeadsPage() {
                       )}
 
                       {isExcel && (
-                        <label className="lead-upload-box">
-                          Upload Excel / CSV
-                          <input
-                            type="file"
-                            accept=".xlsx,.xls,.csv"
-                            disabled={busy || !enabled}
-                            onChange={(e) => handleExcelUpload(e.target.files?.[0])}
-                          />
-                        </label>
+                        <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                          {/* Format Specification Banner */}
+                          <div
+                            style={{
+                              backgroundColor: '#f8fafc',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '8px',
+                              padding: '0.9rem',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '8px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <ShieldCheck size={16} color="#0d9488" />
+                                <strong style={{ fontSize: '0.84rem', color: '#0f172a' }}>
+                                  Fixed Excel / CSV Format Specification
+                                </strong>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={downloadSampleExcelTemplate}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  backgroundColor: '#072423',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  padding: '5px 12px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: '700',
+                                  cursor: 'pointer',
+                                }}
+                                title="Download pre-formatted sample template with exact headers"
+                              >
+                                <Download size={13} />
+                                <span>Download Sample Template</span>
+                              </button>
+                            </div>
+
+                            <p style={{ margin: '0 0 0.65rem 0', fontSize: '0.75rem', color: '#64748b', lineHeight: 1.4 }}>
+                              Our system accepts <strong>only the 5 columns listed below</strong>. Any other columns present in your file are safely ignored during import:
+                            </p>
+
+                            {/* Accepted Columns Grid */}
+                            <div
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                                gap: '8px',
+                              }}
+                            >
+                              <div style={{ backgroundColor: '#fff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                                <div style={{ fontSize: '0.78rem', fontFamily: 'monospace', fontWeight: '800', color: '#0f172a' }}>lead_id</div>
+                                <div style={{ fontSize: '0.68rem', color: '#64748b' }}>Optional • External ID</div>
+                              </div>
+
+                              <div style={{ backgroundColor: '#f0fdf4', padding: '6px 8px', borderRadius: '6px', border: '1px solid #86efac' }}>
+                                <div style={{ fontSize: '0.78rem', fontFamily: 'monospace', fontWeight: '800', color: '#166534' }}>Name *</div>
+                                <div style={{ fontSize: '0.68rem', color: '#15803d', fontWeight: '700' }}>Required • Full Name</div>
+                              </div>
+
+                              <div style={{ backgroundColor: '#f0fdf4', padding: '6px 8px', borderRadius: '6px', border: '1px solid #86efac' }}>
+                                <div style={{ fontSize: '0.78rem', fontFamily: 'monospace', fontWeight: '800', color: '#166534' }}>Phone *</div>
+                                <div style={{ fontSize: '0.68rem', color: '#15803d', fontWeight: '700' }}>Required • WhatsApp/No</div>
+                              </div>
+
+                              <div style={{ backgroundColor: '#fff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                                <div style={{ fontSize: '0.78rem', fontFamily: 'monospace', fontWeight: '800', color: '#0f172a' }}>Email</div>
+                                <div style={{ fontSize: '0.68rem', color: '#64748b' }}>Optional • Email ID</div>
+                              </div>
+
+                              <div style={{ backgroundColor: '#fff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                                <div style={{ fontSize: '0.78rem', fontFamily: 'monospace', fontWeight: '800', color: '#0f172a' }}>company_name</div>
+                                <div style={{ fontSize: '0.68rem', color: '#64748b' }}>Optional • Business Name</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Upload Box & Instant Tabular Preview */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <label style={{ fontSize: '0.82rem', fontWeight: '700', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <Upload size={14} color="#0d9488" />
+                              <span>Select File to Preview & Import (.xlsx, .xls, .csv):</span>
+                            </label>
+                            
+                            <input
+                              ref={fileInputRef}
+                              type="file"
+                              accept=".xlsx,.xls,.csv"
+                              disabled={busy || !enabled || previewLoading || importingExcel}
+                              onChange={(e) => handleExcelFileSelect(e.target.files?.[0])}
+                              style={{
+                                padding: '8px 12px',
+                                border: '1.5px dashed #cbd5e1',
+                                borderRadius: '8px',
+                                backgroundColor: '#fff',
+                                fontSize: '0.82rem',
+                                cursor: busy || !enabled || previewLoading || importingExcel ? 'not-allowed' : 'pointer',
+                              }}
+                            />
+
+                            {/* Loading state while parsing */}
+                            {previewLoading && (
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '10px',
+                                  padding: '12px 16px',
+                                  backgroundColor: '#f0fdfa',
+                                  border: '1.5px solid #99f6e4',
+                                  borderRadius: '8px',
+                                  color: '#0f766e',
+                                  fontSize: '0.84rem',
+                                  fontWeight: '600',
+                                }}
+                              >
+                                <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                                <span>Reading spreadsheet file and generating tabular preview...</span>
+                              </div>
+                            )}
+
+                            {/* Tabular Preview Container */}
+                            {excelPreview && (
+                              <div
+                                style={{
+                                  marginTop: '6px',
+                                  backgroundColor: '#ffffff',
+                                  border: '1.5px solid #0d9488',
+                                  borderRadius: '10px',
+                                  overflow: 'hidden',
+                                  boxShadow: '0 4px 14px rgba(13, 148, 136, 0.08)',
+                                }}
+                              >
+                                {/* Header Bar */}
+                                <div
+                                  style={{
+                                    padding: '12px 16px',
+                                    backgroundColor: '#f0fdfa',
+                                    borderBottom: '1px solid #ccfbf1',
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '12px',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div
+                                      style={{
+                                        width: '36px',
+                                        height: '36px',
+                                        borderRadius: '8px',
+                                        backgroundColor: '#0d9488',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: '#ffffff',
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      <FileSpreadsheet size={20} />
+                                    </div>
+                                    <div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: '0.9rem', fontWeight: '800', color: '#0f172a' }}>
+                                          {excelPreview.fileName}
+                                        </span>
+                                        <span style={{ fontSize: '0.72rem', backgroundColor: '#e2e8f0', color: '#475569', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>
+                                          {excelPreview.fileSize}
+                                        </span>
+                                      </div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#0f766e' }}>
+                                          {excelPreview.totalRows} Total Rows
+                                        </span>
+                                        <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>•</span>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#16a34a' }}>
+                                          {excelPreview.validCount} Valid & Ready
+                                        </span>
+                                        {excelPreview.invalidCount > 0 && (
+                                          <>
+                                            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>•</span>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#d97706' }}>
+                                              {excelPreview.invalidCount} Missing Name/Phone
+                                            </span>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Action Buttons */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <button
+                                      type="button"
+                                      onClick={handleCancelExcelPreview}
+                                      disabled={importingExcel}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                        padding: '7px 12px',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '6px',
+                                        backgroundColor: '#ffffff',
+                                        color: '#475569',
+                                        fontSize: '0.78rem',
+                                        fontWeight: '700',
+                                        cursor: importingExcel ? 'not-allowed' : 'pointer',
+                                      }}
+                                    >
+                                      <X size={14} />
+                                      <span>Cancel / Change</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={handleConfirmExcelImport}
+                                      disabled={importingExcel || excelPreview.validCount === 0}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '7px 16px',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        backgroundColor: excelPreview.validCount === 0 ? '#94a3b8' : '#0d9488',
+                                        color: '#ffffff',
+                                        fontSize: '0.82rem',
+                                        fontWeight: '800',
+                                        cursor: importingExcel || excelPreview.validCount === 0 ? 'not-allowed' : 'pointer',
+                                        boxShadow: '0 2px 6px rgba(13, 148, 136, 0.25)',
+                                      }}
+                                    >
+                                      {importingExcel ? (
+                                        <>
+                                          <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                                          <span>Importing Leads...</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Upload size={15} />
+                                          <span>Import {excelPreview.validCount} Leads</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Filter Toolbar */}
+                                <div
+                                  style={{
+                                    padding: '8px 16px',
+                                    backgroundColor: '#f8fafc',
+                                    borderBottom: '1px solid #e2e8f0',
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '8px',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewFilter('all')}
+                                      style={{
+                                        padding: '4px 10px',
+                                        fontSize: '0.74rem',
+                                        fontWeight: '700',
+                                        borderRadius: '4px',
+                                        border: 'none',
+                                        backgroundColor: previewFilter === 'all' ? '#0f172a' : '#e2e8f0',
+                                        color: previewFilter === 'all' ? '#ffffff' : '#475569',
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      All ({excelPreview.totalRows})
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewFilter('valid')}
+                                      style={{
+                                        padding: '4px 10px',
+                                        fontSize: '0.74rem',
+                                        fontWeight: '700',
+                                        borderRadius: '4px',
+                                        border: 'none',
+                                        backgroundColor: previewFilter === 'valid' ? '#16a34a' : '#dcfce7',
+                                        color: previewFilter === 'valid' ? '#ffffff' : '#15803d',
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      Valid ({excelPreview.validCount})
+                                    </button>
+                                    {excelPreview.invalidCount > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setPreviewFilter('invalid')}
+                                        style={{
+                                          padding: '4px 10px',
+                                          fontSize: '0.74rem',
+                                          fontWeight: '700',
+                                          borderRadius: '4px',
+                                          border: 'none',
+                                          backgroundColor: previewFilter === 'invalid' ? '#d97706' : '#fef3c7',
+                                          color: previewFilter === 'invalid' ? '#ffffff' : '#b45309',
+                                          cursor: 'pointer',
+                                        }}
+                                      >
+                                        Issues ({excelPreview.invalidCount})
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* Search */}
+                                  <div style={{ position: 'relative', width: '220px' }}>
+                                    <Search size={13} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                    <input
+                                      type="text"
+                                      value={previewSearch}
+                                      onChange={(e) => setPreviewSearch(e.target.value)}
+                                      placeholder="Search inside file..."
+                                      style={{
+                                        width: '100%',
+                                        padding: '4px 8px 4px 26px',
+                                        fontSize: '0.76rem',
+                                        borderRadius: '4px',
+                                        border: '1px solid #cbd5e1',
+                                        outline: 'none',
+                                        backgroundColor: '#ffffff',
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Table Grid */}
+                                <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+                                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', textAlign: 'left' }}>
+                                    <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f1f5f9', zIndex: 1, borderBottom: '1px solid #cbd5e1' }}>
+                                      <tr>
+                                        <th style={{ padding: '8px 10px', color: '#475569', fontWeight: '800', width: '40px' }}>#</th>
+                                        <th style={{ padding: '8px 10px', color: '#475569', fontWeight: '800', width: '90px' }}>lead_id</th>
+                                        <th style={{ padding: '8px 10px', color: '#475569', fontWeight: '800' }}>Name</th>
+                                        <th style={{ padding: '8px 10px', color: '#475569', fontWeight: '800' }}>Phone</th>
+                                        <th style={{ padding: '8px 10px', color: '#475569', fontWeight: '800' }}>Email</th>
+                                        <th style={{ padding: '8px 10px', color: '#475569', fontWeight: '800' }}>company_name</th>
+                                        <th style={{ padding: '8px 10px', color: '#475569', fontWeight: '800', width: '90px', textAlign: 'center' }}>Status</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {previewFilteredRows.length === 0 ? (
+                                        <tr>
+                                          <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: '0.82rem' }}>
+                                            No rows match the current search or filter.
+                                          </td>
+                                        </tr>
+                                      ) : (
+                                        previewFilteredRows.map((row) => (
+                                          <tr
+                                            key={row.rowNumber}
+                                            style={{
+                                              borderBottom: '1px solid #f1f5f9',
+                                              backgroundColor: row.isValid ? '#ffffff' : '#fffbeb',
+                                            }}
+                                          >
+                                            <td style={{ padding: '7px 10px', color: '#64748b', fontWeight: '600' }}>
+                                              {row.rowNumber}
+                                            </td>
+                                            <td style={{ padding: '7px 10px', fontFamily: 'monospace', color: '#0f172a', fontWeight: '700' }}>
+                                              {row.lead_id || <span style={{ color: '#cbd5e1' }}>—</span>}
+                                            </td>
+                                            <td style={{ padding: '7px 10px', fontWeight: '700', color: row.name ? '#0f172a' : '#ef4444' }}>
+                                              {row.name || <span style={{ color: '#ef4444', fontStyle: 'italic' }}>Missing</span>}
+                                            </td>
+                                            <td style={{ padding: '7px 10px', color: row.phone ? '#0d9488' : '#ef4444', fontWeight: row.phone ? '600' : 'normal' }}>
+                                              {row.phone || <span style={{ color: '#ef4444', fontStyle: 'italic' }}>Missing</span>}
+                                            </td>
+                                            <td style={{ padding: '7px 10px', color: '#475569' }}>
+                                              {row.email || <span style={{ color: '#cbd5e1' }}>—</span>}
+                                            </td>
+                                            <td style={{ padding: '7px 10px', color: '#475569' }}>
+                                              {row.company_name || <span style={{ color: '#cbd5e1' }}>—</span>}
+                                            </td>
+                                            <td style={{ padding: '7px 10px', textAlign: 'center' }}>
+                                              {row.isValid ? (
+                                                <span
+                                                  style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px',
+                                                    padding: '2px 8px',
+                                                    borderRadius: '999px',
+                                                    backgroundColor: '#dcfce7',
+                                                    color: '#15803d',
+                                                    fontSize: '0.68rem',
+                                                    fontWeight: '800',
+                                                  }}
+                                                >
+                                                  <Check size={11} /> Ready
+                                                </span>
+                                              ) : (
+                                                <span
+                                                  title={row.issue || 'Missing Name and Phone'}
+                                                  style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px',
+                                                    padding: '2px 8px',
+                                                    borderRadius: '999px',
+                                                    backgroundColor: '#fef3c7',
+                                                    color: '#b45309',
+                                                    fontSize: '0.68rem',
+                                                    fontWeight: '800',
+                                                    cursor: 'help',
+                                                  }}
+                                                >
+                                                  <AlertCircle size={11} /> Skip
+                                                </span>
+                                              )}
+                                            </td>
+                                          </tr>
+                                        ))
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+
+                                {/* Footer info */}
+                                <div
+                                  style={{
+                                    padding: '8px 16px',
+                                    backgroundColor: '#f8fafc',
+                                    borderTop: '1px solid #e2e8f0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    fontSize: '0.72rem',
+                                    color: '#64748b',
+                                  }}
+                                >
+                                  <span>
+                                    Showing <strong>{previewFilteredRows.length}</strong> of <strong>{excelPreview.totalRows}</strong> rows
+                                  </span>
+                                  <span>
+                                    * Only rows with valid Name or Phone will be imported
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       )}
 
                       {isForm && (
@@ -939,6 +1602,35 @@ export default function CompanyLeadsPage() {
                           <p className="muted lead-one-tap-note">
                             {enabled ? 'Connected — receiving leads when enabled.' : 'Enable to start receiving leads.'}
                           </p>
+
+                          {source.slug === 'whatsapp' && (
+                            <div style={{ marginTop: '12px', marginBottom: '8px' }}>
+                              <button
+                                type="button"
+                                onClick={() => setShowWhatsAppModal(true)}
+                                style={{
+                                  width: '100%',
+                                  backgroundColor: '#16a34a',
+                                  color: '#fff',
+                                  border: 'none',
+                                  padding: '10px 16px',
+                                  borderRadius: '8px',
+                                  fontSize: '0.86rem',
+                                  fontWeight: '700',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '8px',
+                                  boxShadow: '0 2px 4px rgba(22, 163, 74, 0.25)',
+                                  transition: 'background-color 0.15s',
+                                }}
+                              >
+                                <MessageSquare size={17} />
+                                <span>View WhatsApp Chats with Salespersons</span>
+                              </button>
+                            </div>
+                          )}
                           {enabled && capture.endpoints?.webhook_post && (
                             <div style={{ marginTop: '12px' }}>
                               <div className="lead-endpoint-row">
@@ -1046,80 +1738,97 @@ export default function CompanyLeadsPage() {
             <table className="gov-table">
               <thead>
                 <tr>
-                  <th>Lead ID</th>
-                  <th>Name</th>
-                  <th>Phone</th>
-                  <th>Email</th>
-                  <th>Company</th>
-                  <th>Source</th>
-                  <th>Campaign</th>
-                  <th>Date</th>
-                  <th>Assigned Salesperson</th>
-                  <th>Tags</th>
-                  <th>Status</th>
+                  {dynamicColumns.map((col) => (
+                    <th key={col.key}>{col.label}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {leads.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="gov-empty">
+                    <td colSpan={dynamicColumns.length} className="gov-empty">
                       No leads yet. Enable a source or create a lead manually.
                     </td>
                   </tr>
                 )}
                 {leads.map((lead, index) => (
                   <tr key={lead.id} className={index % 2 === 1 ? 'gov-row-alt' : ''}>
-                    <td className="gov-strong">{lead.lead_code}</td>
-                    <td>{lead.name}</td>
-                    <td>{lead.phone || '—'}</td>
-                    <td>{lead.email || '—'}</td>
-                    <td>{lead.lead_company || '—'}</td>
-                    <td>{lead.source_label || lead.source_name || '—'}</td>
-                    <td>{lead.campaign || '—'}</td>
-                    <td>{formatDate(lead.lead_date)}</td>
-                    <td>
-                      {isAdmin ? (
-                        <select
-                          className="lead-inline-select"
-                          value={lead.assigned_to || ''}
-                          onChange={(e) => assignLead(lead.id, e.target.value)}
-                          disabled={busy}
-                        >
-                          <option value="">Unassigned</option>
-                          {salespeople.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.name}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        lead.assigned_name || '—'
-                      )}
-                    </td>
-                    <td>
-                      <div className="lead-tags">
-                        {(lead.tags || []).length === 0 && '—'}
-                        {(lead.tags || []).map((tag) => (
-                          <span key={tag} className="lead-tag">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td>
-                      <select
-                        className="lead-inline-select"
-                        value={lead.status}
-                        onChange={(e) => updateStatus(lead.id, e.target.value)}
-                        disabled={busy}
-                      >
-                        <option value="new">New</option>
-                        <option value="contacted">Contacted</option>
-                        <option value="qualified">Qualified</option>
-                        <option value="won">Won</option>
-                        <option value="lost">Lost</option>
-                      </select>
-                    </td>
+                    {dynamicColumns.map((col) => {
+                      if (col.isLeadCode) {
+                        return (
+                          <td key={col.key} className="gov-strong">
+                            {lead.lead_code}
+                          </td>
+                        );
+                      }
+                      if (col.isDate) {
+                        return (
+                          <td key={col.key}>
+                            {formatDate(lead.lead_date)}
+                          </td>
+                        );
+                      }
+                      if (col.isSalesperson) {
+                        return (
+                          <td key={col.key}>
+                            {isAdmin ? (
+                              <select
+                                className="lead-inline-select"
+                                value={lead.assigned_to || ''}
+                                onChange={(e) => assignLead(lead.id, e.target.value)}
+                                disabled={busy}
+                              >
+                                <option value="">Unassigned</option>
+                                {salespeople.map((m) => (
+                                  <option key={m.id} value={m.id}>
+                                    {m.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              lead.assigned_name || '—'
+                            )}
+                          </td>
+                        );
+                      }
+                      if (col.isTags) {
+                        return (
+                          <td key={col.key}>
+                            <div className="lead-tags">
+                              {(lead.tags || []).length === 0 && '—'}
+                              {(lead.tags || []).map((tag) => (
+                                <span key={tag} className="lead-tag">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                        );
+                      }
+                      if (col.isStatus) {
+                        return (
+                          <td key={col.key}>
+                            <select
+                              className="lead-inline-select"
+                              value={lead.status}
+                              onChange={(e) => updateStatus(lead.id, e.target.value)}
+                              disabled={busy}
+                            >
+                              <option value="new">New</option>
+                              <option value="contacted">Contacted</option>
+                              <option value="qualified">Qualified</option>
+                              <option value="won">Won</option>
+                              <option value="lost">Lost</option>
+                            </select>
+                          </td>
+                        );
+                      }
+                      return (
+                        <td key={col.key}>
+                          {getLeadCellValue(lead, col.key)}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
@@ -1155,6 +1864,13 @@ export default function CompanyLeadsPage() {
           </div>
           </section>
         </div>
-      )}    </div>
+      )}
+
+      {/* WhatsApp Live Chat & Salesperson Conversations Modal */}
+      <WhatsAppChatModal
+        isOpen={showWhatsAppModal}
+        onClose={() => setShowWhatsAppModal(false)}
+      />
+    </div>
   );
 }
