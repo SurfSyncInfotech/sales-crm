@@ -128,6 +128,8 @@ export const companyPortalApi = {
     api(`/company/team/${id}/domain`, { method: 'PATCH', body: { domain }, portal: 'company' }),
   impersonateSales: (memberId) =>
     api(`/company/team/${memberId}/impersonate`, { method: 'POST', portal: 'company' }),
+  deleteMember: (id) =>
+    api(`/company/team/${id}`, { method: 'DELETE', portal: 'company' }),
   leadSources: () => api('/company/leads/sources', { portal: 'company' }),
   toggleLeadSource: (sourceId, is_enabled) =>
     api(`/company/leads/sources/${sourceId}`, {

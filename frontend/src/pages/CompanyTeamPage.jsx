@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { companyPortalApi } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { Key } from 'lucide-react';
+import { Key, Trash2 } from 'lucide-react';
 
 const empty = { name: '', email: '', phone: '', password: '', domain: '' };
 
@@ -18,6 +18,7 @@ export default function CompanyTeamPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [switchingId, setSwitchingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   async function load() {
     const [teamData, domainsData] = await Promise.all([
@@ -65,6 +66,22 @@ export default function CompanyTeamPage() {
       await load();
     } catch (err) {
       setError(err.message);
+    }
+  }
+
+  async function handleDelete(member) {
+    if (!window.confirm(`Are you sure you want to delete salesperson "${member.name}"? This action cannot be undone.`)) {
+      return;
+    }
+    setDeletingId(member.id);
+    setError('');
+    try {
+      await companyPortalApi.deleteMember(member.id);
+      await load();
+    } catch (err) {
+      setError(err.message || 'Failed to delete salesperson');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -264,6 +281,28 @@ export default function CompanyTeamPage() {
                         </button>
                         <button type="button" className="ghost-btn" onClick={() => toggleStatus(member)}>
                           {member.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost-btn"
+                          style={{
+                            color: '#dc2626',
+                            borderColor: '#fecaca',
+                            backgroundColor: '#fff',
+                            padding: '4px 10px',
+                            fontSize: '0.82rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => handleDelete(member)}
+                          disabled={deletingId === member.id}
+                          title="Delete this salesperson permanently"
+                        >
+                          <Trash2 size={13} />
+                          {deletingId === member.id ? 'Deleting…' : 'Delete'}
                         </button>
                       </div>
                     ) : (

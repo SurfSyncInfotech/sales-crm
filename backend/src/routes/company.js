@@ -380,4 +380,46 @@ router.post('/team/:id/impersonate', async (req, res) => {
   }
 });
 
+router.delete('/team/:id', async (req, res) => {
+  try {
+    if (req.user.role !== 'company_admin') {
+      return res.status(403).json({ message: 'Only company admins can delete salespersons' });
+    }
+
+    const memberId = Number(req.params.id);
+    const companyId = req.user.company_id;
+
+    if (memberId === req.user.id) {
+      return res.status(400).json({ message: 'Cannot delete your own admin account' });
+    }
+
+    const [rows] = await pool.query(
+      'SELECT id, role, name FROM users WHERE id = ? AND company_id = ? LIMIT 1',
+      [memberId, companyId]
+    );
+
+    const member = rows[0];
+    if (!member) {
+      return res.status(404).json({ message: 'Team member not found' });
+    }
+
+    if (member.role === 'company_admin') {
+      return res.status(400).json({ message: 'Cannot delete a company admin' });
+    }
+
+    // Cleanly unassign any assigned or claimed leads
+    await pool.query('UPDATE leads SET assigned_to = NULL WHERE assigned_to = ? AND company_id = ?', [memberId, companyId]);
+    await pool.query('UPDATE leads SET claimed_by = NULL WHERE claimed_by = ? AND company_id = ?', [memberId, companyId]);
+    await pool.query('UPDATE lead_reminders SET salesperson_id = NULL WHERE salesperson_id = ? AND company_id = ?', [memberId, companyId]);
+
+    // Delete the salesperson user
+    await pool.query('DELETE FROM users WHERE id = ? AND company_id = ? AND role = "salesperson"', [memberId, companyId]);
+
+    res.json({ success: true, message: `Salesperson ${member.name} deleted successfully` });
+  } catch (err) {
+    console.error('Delete salesperson error:', err);
+    res.status(500).json({ message: 'Failed to delete salesperson' });
+  }
+});
+
 module.exports = router;
