@@ -884,7 +884,18 @@ router.patch('/:id', async (req, res) => {
         await setLeadStage({ companyId, leadId, stageId: stageRows[0].id, actorId: req.user.id });
       }
 
-      if (status === 'quotation_sent') {
+      if (status === 'interested') {
+        await pool.query("UPDATE lead_reminders SET status = 'cancelled' WHERE lead_id = ? AND status = 'pending'", [leadId]);
+        const repId = existing.assigned_to || existing.claimed_by || req.user.id;
+        const scheduleDays = [2, 5, 10, 21];
+        for (const d of scheduleDays) {
+          await pool.query(
+            `INSERT INTO lead_reminders (company_id, lead_id, salesperson_id, phase, day_number, scheduled_for, status)
+             VALUES (?, ?, ?, 'phase_1_interested', ?, DATE_ADD(NOW(), INTERVAL ? DAY), 'pending')`,
+            [companyId, leadId, repId, d, d]
+          );
+        }
+      } else if (status === 'quotation_sent') {
         await pool.query("UPDATE leads SET quotation_sent_at = NOW() WHERE id = ?", [leadId]);
         await pool.query("UPDATE lead_reminders SET status = 'cancelled' WHERE lead_id = ? AND status = 'pending'", [leadId]);
         const repId = existing.assigned_to || existing.claimed_by || req.user.id;
@@ -1158,6 +1169,73 @@ router.delete('/urls/:id', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Failed to delete URL' });
+  }
+});
+
+/**
+ * GET /api/company/leads/tasks
+ * Returns real follow-up touchpoint tasks from lead_reminders for the Company Tasks page
+ */
+router.get('/tasks', async (req, res) => {
+  try {
+    const companyId = req.user.company_id;
+    const [rows] = await pool.query(
+      `SELECT r.id, r.lead_id, r.phase, r.day_number, r.scheduled_for, r.status, r.sent_at, r.notes, r.created_at,
+              l.name AS lead_name, l.phone AS lead_phone, l.email AS lead_email, l.status AS lead_status, l.lead_company,
+              u.name AS salesperson_name
+       FROM lead_reminders r
+       JOIN leads l ON l.id = r.lead_id
+       LEFT JOIN users u ON u.id = r.salesperson_id
+       WHERE r.company_id = ?
+       ORDER BY r.scheduled_for ASC LIMIT 200`,
+      [companyId]
+    );
+
+    const [[metrics]] = await pool.query(
+      `SELECT
+        COUNT(CASE WHEN r.status = 'pending' AND r.scheduled_for > NOW() THEN 1 END) AS pending_count,
+        COUNT(CASE WHEN r.status = 'pending' AND r.scheduled_for <= NOW() THEN 1 END) AS overdue_count,
+        COUNT(CASE WHEN r.status = 'sent' THEN 1 END) AS completed_count,
+        COUNT(*) AS total_count
+       FROM lead_reminders r
+       JOIN leads l ON l.id = r.lead_id
+       WHERE r.company_id = ?`,
+      [companyId]
+    );
+
+    res.json({
+      tasks: rows,
+      metrics: {
+        pending: Number(metrics?.pending_count || 0),
+        overdue: Number(metrics?.overdue_count || 0),
+        completed: Number(metrics?.completed_count || 0),
+        total: Number(metrics?.total_count || 0),
+      },
+    });
+  } catch (err) {
+    console.error('Company tasks fetch error:', err);
+    res.status(500).json({ message: 'Failed to fetch company tasks' });
+  }
+});
+
+/**
+ * PATCH /api/company/leads/tasks/:id/complete
+ * Allows checking off or unchecking a cadence task
+ */
+router.patch('/tasks/:id/complete', async (req, res) => {
+  try {
+    const companyId = req.user.company_id;
+    const taskId = Number(req.params.id);
+    const { done } = req.body || {};
+    const newStatus = done ? 'sent' : 'pending';
+    await pool.query(
+      'UPDATE lead_reminders SET status = ?, sent_at = ? WHERE id = ? AND company_id = ?',
+      [newStatus, done ? new Date() : null, taskId, companyId]
+    );
+    res.json({ success: true, status: newStatus });
+  } catch (err) {
+    console.error('Task complete error:', err);
+    res.status(500).json({ message: 'Failed to update task status' });
   }
 });
 

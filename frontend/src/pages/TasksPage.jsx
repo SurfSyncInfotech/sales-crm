@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   CalendarClock,
@@ -8,54 +8,166 @@ import {
   Phone,
   Users,
   Check,
-  Clock,
-  Sparkles,
+  RotateCw,
 } from 'lucide-react';
-import { useWorkflow } from '../features/workflow/WorkflowContext';
-import { timeAgo } from '../features/workflow/useWorkflowStore';
+import { companyApi } from '../api/client';
 
 const TYPE_ICON = { call: Phone, whatsapp: MessageCircle, meeting: Users, task: ListChecks };
 
+function formatRelativeDue(dateVal, isOverdue) {
+  if (!dateVal) return '—';
+  const target = new Date(dateVal).getTime();
+  if (isNaN(target)) return '—';
+  const diffMs = Math.abs(target - Date.now());
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  let timeStr = '';
+  if (diffHours < 1) {
+    const mins = Math.max(1, Math.floor(diffMs / (1000 * 60)));
+    timeStr = `${mins}m`;
+  } else if (diffHours < 24) {
+    timeStr = `${diffHours}h`;
+  } else {
+    timeStr = `${diffDays}d`;
+  }
+
+  return isOverdue ? `Overdue ${timeStr} ago` : `Due in ${timeStr}`;
+}
+
 export default function TasksPage() {
-  const wf = useWorkflow();
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('open');
+  const [metrics, setMetrics] = useState({ pending: 0, overdue: 0, completed: 0, total: 0 });
 
-  const [now] = useState(() => Date.now());
-  const enriched = useMemo(
-    () =>
-      wf.tasks.map((t) => ({
-        ...t,
-        overdue: !t.done && new Date(t.due).getTime() < now,
-      })),
-    [wf.tasks, now]
-  );
+  async function loadTasks(silent = false) {
+    if (!silent) setLoading(true);
+    try {
+      const res = await companyApi.tasks();
+      const raw = res.tasks || [];
+      const now = Date.now();
 
-  const open = enriched.filter((t) => !t.done);
-  const overdue = enriched.filter((t) => t.overdue);
-  const done = enriched.filter((t) => t.done);
+      const mapped = raw.map((r) => {
+        const isDone = r.status === 'sent';
+        const isOverdue = !isDone && new Date(r.scheduled_for).getTime() < now;
+        let title = 'Follow-up cadence';
+        if (r.phase === 'phase_2_post_quote') {
+          title = `Quotation Follow-Up (Day ${r.day_number})`;
+        } else if (r.day_number) {
+          title = `Interested Lead Follow-Up (Day ${r.day_number})`;
+        }
 
-  const shown = { open, overdue, done }[tab].slice().sort((a, b) => new Date(a.due) - new Date(b.due));
+        return {
+          id: r.id,
+          leadId: r.lead_id,
+          title,
+          type: 'whatsapp',
+          leadName: r.lead_name || `Lead #${r.lead_id}`,
+          leadPhone: r.lead_phone,
+          leadCompany: r.lead_company,
+          salespersonName: r.salesperson_name || 'Assigned Rep',
+          due: r.scheduled_for,
+          status: r.status,
+          done: isDone,
+          overdue: isOverdue,
+        };
+      });
+
+      setTasks(mapped);
+      if (res.metrics) {
+        setMetrics(res.metrics);
+      } else {
+        const openCnt = mapped.filter((t) => !t.done && !t.overdue).length;
+        const overdueCnt = mapped.filter((t) => t.overdue).length;
+        const doneCnt = mapped.filter((t) => t.done).length;
+        setMetrics({ pending: openCnt, overdue: overdueCnt, completed: doneCnt, total: mapped.length });
+      }
+    } catch (err) {
+      console.error('Failed to load company tasks:', err);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadTasks();
+    const interval = setInterval(() => loadTasks(true), 20000);
+    return () => clearInterval(interval);
+  }, []);
+
+  async function handleToggle(taskId, currentDone) {
+    const nextDone = !currentDone;
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, done: nextDone, status: nextDone ? 'sent' : 'pending', overdue: false }
+          : t
+      )
+    );
+
+    try {
+      await companyApi.completeTask(taskId, { done: nextDone });
+      loadTasks(true);
+    } catch (err) {
+      console.error('Failed to toggle task:', err);
+      loadTasks(true);
+    }
+  }
+
+  const openList = useMemo(() => tasks.filter((t) => !t.done), [tasks]);
+  const overdueList = useMemo(() => tasks.filter((t) => t.overdue), [tasks]);
+  const doneList = useMemo(() => tasks.filter((t) => t.done), [tasks]);
+
+  const shown = useMemo(() => {
+    const list = tab === 'overdue' ? overdueList : tab === 'done' ? doneList : openList;
+    return list.slice().sort((a, b) => new Date(a.due).getTime() - new Date(b.due).getTime());
+  }, [tab, openList, overdueList, doneList]);
 
   return (
     <div className="tasks-page" style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Header */}
-      <div>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#F68713', marginBottom: '4px' }}>
-          <span>Commercial Operations</span>
-          <span style={{ color: '#D1D5DB' }}>/</span>
-          <span>Task Cadence</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#F68713', marginBottom: '4px' }}>
+            <span>Commercial Operations</span>
+            <span style={{ color: '#D1D5DB' }}>/</span>
+            <span>Task Cadence</span>
+          </div>
+          <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#111827', margin: 0, letterSpacing: '-0.02em', fontFamily: 'Manrope, sans-serif' }}>
+            Follow-Up Tasks & Reminders
+          </h1>
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6B7280' }}>
+            Live WhatsApp follow-up cadence, quotation touchpoints, and scheduled rep tasks across the company.
+          </p>
         </div>
-        <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#111827', margin: 0, letterSpacing: '-0.02em', fontFamily: 'Manrope, sans-serif' }}>
-          Cadence Tasks & Follow-Up Reminders
-        </h1>
-        <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6B7280' }}>
-          Automated customer touchpoints and cadence reminders to ensure zero lead drop-off across representative pipelines.
-        </p>
+
+        <button
+          type="button"
+          onClick={() => loadTasks(false)}
+          disabled={loading}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #D1D5DB',
+            borderRadius: '8px',
+            padding: '7px 14px',
+            fontSize: '12px',
+            fontWeight: 700,
+            color: '#374151',
+            cursor: 'pointer',
+          }}
+        >
+          <RotateCw size={13} className={loading ? 'animate-spin' : ''} />
+          <span>Refresh</span>
+        </button>
       </div>
 
-      {/* KPI Stat Widgets (Component 3.1) */}
+      {/* KPI Stat Widgets */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-        {/* Open Tasks */}
+        {/* Pending Tasks */}
         <div style={{
           backgroundColor: '#FFFFFF',
           border: '1px solid #E6E9EE',
@@ -77,7 +189,7 @@ export default function TasksPage() {
           </div>
           <div style={{ marginTop: '12px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
             <span className="num" style={{ fontSize: '28px', fontWeight: 800, color: '#111827', fontFamily: 'Manrope, sans-serif' }}>
-              {open.length}
+              {openList.length}
             </span>
             <span style={{ fontSize: '11px', fontWeight: 700, color: '#2A9CB8', backgroundColor: '#E8F6FA', padding: '2px 8px', borderRadius: '999px' }}>
               Awaiting Action
@@ -85,7 +197,7 @@ export default function TasksPage() {
           </div>
         </div>
 
-        {/* Overdue Tasks */}
+        {/* Overdue Alerts */}
         <div style={{
           backgroundColor: '#FFFFFF',
           border: '1px solid #E6E9EE',
@@ -106,8 +218,8 @@ export default function TasksPage() {
             </div>
           </div>
           <div style={{ marginTop: '12px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-            <span className="num" style={{ fontSize: '28px', fontWeight: 800, color: overdue.length > 0 ? '#DC2626' : '#111827', fontFamily: 'Manrope, sans-serif' }}>
-              {overdue.length}
+            <span className="num" style={{ fontSize: '28px', fontWeight: 800, color: overdueList.length > 0 ? '#DC2626' : '#111827', fontFamily: 'Manrope, sans-serif' }}>
+              {overdueList.length}
             </span>
             <span style={{ fontSize: '11px', fontWeight: 700, color: '#DC2626', backgroundColor: '#FEF2F2', padding: '2px 8px', borderRadius: '999px' }}>
               Escalation Risk
@@ -115,7 +227,7 @@ export default function TasksPage() {
           </div>
         </div>
 
-        {/* Completed Tasks */}
+        {/* Completed Touchpoints */}
         <div style={{
           backgroundColor: '#FFFFFF',
           border: '1px solid #E6E9EE',
@@ -137,7 +249,7 @@ export default function TasksPage() {
           </div>
           <div style={{ marginTop: '12px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
             <span className="num" style={{ fontSize: '28px', fontWeight: 800, color: '#111827', fontFamily: 'Manrope, sans-serif' }}>
-              {done.length}
+              {doneList.length}
             </span>
             <span style={{ fontSize: '11px', fontWeight: 700, color: '#059669', backgroundColor: '#ECFDF5', padding: '2px 8px', borderRadius: '999px' }}>
               Fulfilled
@@ -171,7 +283,7 @@ export default function TasksPage() {
             </h2>
           </div>
 
-          {/* Segmented Tabs (Component 3.4) */}
+          {/* Segmented Tabs */}
           <div className="lead-tabs" style={{ padding: '3px' }}>
             <button
               type="button"
@@ -179,7 +291,7 @@ export default function TasksPage() {
               onClick={() => setTab('open')}
               style={{ fontSize: '12px', padding: '6px 14px' }}
             >
-              Open ({open.length})
+              Open ({openList.length})
             </button>
             <button
               type="button"
@@ -187,7 +299,7 @@ export default function TasksPage() {
               onClick={() => setTab('overdue')}
               style={{ fontSize: '12px', padding: '6px 14px' }}
             >
-              Overdue ({overdue.length})
+              Overdue ({overdueList.length})
             </button>
             <button
               type="button"
@@ -195,24 +307,28 @@ export default function TasksPage() {
               onClick={() => setTab('done')}
               style={{ fontSize: '12px', padding: '6px 14px' }}
             >
-              Done ({done.length})
+              Done ({doneList.length})
             </button>
           </div>
         </div>
 
         {/* Task Items List */}
-        {shown.length === 0 ? (
+        {loading && tasks.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '3.5rem 1.5rem', color: '#6B7280' }}>
+            <div style={{ fontSize: '13px', fontWeight: 600 }}>Loading scheduled tasks…</div>
+          </div>
+        ) : shown.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '4rem 1.5rem', color: '#9CA3AF' }}>
             <CheckCircle2 size={36} color="#059669" style={{ margin: '0 auto 8px auto', opacity: 0.8 }} />
             <p style={{ fontWeight: 700, margin: 0, color: '#111827', fontSize: '14px' }}>All caught up!</p>
-            <span style={{ fontSize: '12px' }}>No tasks found in this view.</span>
+            <span style={{ fontSize: '12px' }}>
+              {tab === 'done' ? 'No completed tasks yet.' : tab === 'overdue' ? 'No overdue follow-up tasks.' : 'No pending tasks in the queue.'}
+            </span>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {shown.map((t, idx) => {
-              const Icon = TYPE_ICON[t.type] || ListChecks;
-              const lead = wf.leadById[t.leadId];
-              const owner = wf.userById[t.owner];
+              const Icon = TYPE_ICON[t.type] || MessageCircle;
 
               return (
                 <div
@@ -234,7 +350,7 @@ export default function TasksPage() {
                     {/* Checkbox button */}
                     <button
                       type="button"
-                      onClick={() => wf.toggleTask(t.id)}
+                      onClick={() => handleToggle(t.id, t.done)}
                       style={{
                         width: '22px',
                         height: '22px',
@@ -250,7 +366,7 @@ export default function TasksPage() {
                         flexShrink: 0,
                         transition: 'all 0.15s ease',
                       }}
-                      title={t.done ? 'Mark as not done' : 'Mark as completed'}
+                      title={t.done ? 'Mark as pending' : 'Mark as completed'}
                     >
                       {t.done && <Check size={14} strokeWidth={3} />}
                     </button>
@@ -281,11 +397,9 @@ export default function TasksPage() {
                       }}>
                         {t.title}
                       </div>
-                      {lead?.name && (
-                        <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '2px', fontWeight: 600 }}>
-                          Contact: {lead.name}
-                        </div>
-                      )}
+                      <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '2px', fontWeight: 600 }}>
+                        Contact: {t.leadName} {t.leadPhone ? `(${t.leadPhone})` : ''} {t.leadCompany ? `• ${t.leadCompany}` : ''}
+                      </div>
                     </div>
                   </div>
 
@@ -294,17 +408,17 @@ export default function TasksPage() {
                     <span style={{
                       fontSize: '11px',
                       fontWeight: 700,
-                      backgroundColor: t.overdue ? '#FEF2F2' : '#F3F4F6',
-                      color: t.overdue ? '#DC2626' : '#4B5563',
-                      border: t.overdue ? '1px solid #FECACA' : '1px solid #E5E7EB',
+                      backgroundColor: t.done ? '#ECFDF5' : t.overdue ? '#FEF2F2' : '#F3F4F6',
+                      color: t.done ? '#059669' : t.overdue ? '#DC2626' : '#4B5563',
+                      border: t.done ? '1px solid #A7F3D0' : t.overdue ? '1px solid #FECACA' : '1px solid #E5E7EB',
                       padding: '3px 10px',
                       borderRadius: '6px',
                       whiteSpace: 'nowrap',
                     }}>
-                      {t.overdue ? `Overdue ${timeAgo(t.due)}` : `Due ${timeAgo(t.due)}`}
+                      {t.done ? 'Completed' : formatRelativeDue(t.due, t.overdue)}
                     </span>
 
-                    {owner && (
+                    {t.salespersonName && (
                       <div
                         style={{
                           width: '28px',
@@ -319,9 +433,9 @@ export default function TasksPage() {
                           justifyContent: 'center',
                           flexShrink: 0,
                         }}
-                        title={owner.name}
+                        title={`Rep: ${t.salespersonName}`}
                       >
-                        {owner.name.charAt(0).toUpperCase()}
+                        {t.salespersonName.charAt(0).toUpperCase()}
                       </div>
                     )}
                   </div>

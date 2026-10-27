@@ -204,6 +204,8 @@ export const companyPortalApi = {
     api(`/company/leads/${leadId}/send-quotation-email`, { method: 'POST', body, portal: 'company' }),
   sendDemoEmail: (leadId, body) =>
     api(`/company/leads/${leadId}/send-demo-email`, { method: 'POST', body, portal: 'company' }),
+  tasks: () => api('/company/leads/tasks', { portal: 'company' }),
+  completeTask: (id, body) => api(`/company/leads/tasks/${id}/complete`, { method: 'PATCH', body, portal: 'company' }),
   // WABA / WhatsApp Business API Suite
   wabaStatus: () => api('/company/waba/status', { portal: 'company' }),
   wabaRazorpayConfig: () => api('/company/waba/razorpay-config', { portal: 'company' }),
