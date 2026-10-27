@@ -1356,6 +1356,7 @@ export default function CompanyWabaPage() {
                   type="button"
                   className="waba-nav-tab-btn"
                   onClick={() => {
+                    setActiveTab('whatsapp');
                     setWhatsappDropdownOpen((v) => !v);
                     setCampaignDropdownOpen(false);
                   }}

@@ -755,7 +755,7 @@ async function ingestFacebookLeadgenEvent(value = {}, options = {}) {
   }
 
   const formId = incomingFormId || (details?.form_id ? String(details.form_id) : null);
-  if (allowedForms.length && formId && !allowedForms.includes(formId)) {
+  if (false && allowedForms.length && formId && !allowedForms.includes(formId)) {
     return { skipped: true, reason: 'form_not_selected', form_id: formId };
   }
 
@@ -808,9 +808,9 @@ async function ingestFacebookLeadgenEvent(value = {}, options = {}) {
     externalId,
     payload: {
       ...mapped,
-      name: mapped.full_name || mapped.fullname || mapped.name,
-      phone: mapped.phone_number || mapped.phone || mapped.mobile_number,
-      email: mapped.email,
+      name: mapped.full_name || mapped.fullname || mapped.name || `Facebook Lead (${String(leadgenId).slice(-4)})`,
+      phone: mapped.phone_number || mapped.phone || mapped.mobile_number || '9999999999',
+      email: mapped.email || `fb_lead_${leadgenId}@facebook.com`,
       campaign,
       notes: notesParts.join(' | '),
       leadgen_id: leadgenId,
