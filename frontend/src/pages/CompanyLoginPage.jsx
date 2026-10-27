@@ -174,222 +174,28 @@ export default function CompanyLoginPage() {
     <div
       style={{
         display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         minHeight: '100vh',
         backgroundColor: '#F6F7F9',
         fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        padding: '2.5rem 1.5rem',
       }}
       className="company-login-container"
     >
-      {/* Left Hero Pane (Midnight Slate Enterprise Theme) */}
-      <section
+      <div
         style={{
-          flex: '1.1',
-          backgroundColor: '#0B0F14',
-          color: '#ECEFF3',
-          padding: '3.5rem 3rem',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          position: 'relative',
-          overflow: 'hidden',
-          borderRight: '1px solid #1E2530',
+          width: '100%',
+          maxWidth: '440px',
+          backgroundColor: '#FFFFFF',
+          borderRadius: '16px',
+          border: '1px solid #E6E9EE',
+          padding: '2.25rem 2rem',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.04), 0 8px 10px -6px rgba(0, 0, 0, 0.02)',
+          boxSizing: 'border-box',
         }}
-        className="company-login-hero"
       >
-        {/* Ambient lighting */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '-15%',
-            left: '-10%',
-            width: '420px',
-            height: '420px',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(246, 135, 19, 0.12) 0%, transparent 70%)',
-            pointerEvents: 'none',
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '-15%',
-            right: '-10%',
-            width: '460px',
-            height: '460px',
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(42, 156, 184, 0.10) 0%, transparent 70%)',
-            pointerEvents: 'none',
-          }}
-        />
-
-        {/* Top Brand Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', zIndex: 2 }}>
-          <div
-            style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '10px',
-              backgroundColor: '#F68713',
-              backgroundImage: 'linear-gradient(135deg, #F8942A 0%, #E26C04 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(246, 135, 19, 0.35)',
-            }}
-          >
-            <Building2 size={20} color="#FFFFFF" />
-          </div>
-          <div>
-            <div style={{ fontWeight: '800', fontSize: '1.25rem', color: '#ECEFF3', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-              {companyName || 'SurfSync'}
-            </div>
-            <div style={{ fontSize: '0.68rem', color: '#F68713', fontWeight: '800', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Company Administration
-            </div>
-          </div>
-        </div>
-
-        {/* Middle Hero Copy */}
-        <div style={{ zIndex: 2, maxWidth: '520px', margin: '3rem 0' }}>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '4px 10px',
-              borderRadius: '999px',
-              backgroundColor: 'rgba(246, 135, 19, 0.14)',
-              border: '1px solid rgba(246, 135, 19, 0.3)',
-              color: '#F8942A',
-              fontSize: '0.72rem',
-              fontWeight: '700',
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              marginBottom: '1.25rem',
-            }}
-          >
-            <Zap size={11} /> Enterprise Company Console
-          </div>
-
-          <h1
-            style={{
-              fontSize: '2.35rem',
-              fontWeight: '800',
-              lineHeight: 1.18,
-              letterSpacing: '-0.03em',
-              color: '#FFFFFF',
-              margin: '0 0 1rem 0',
-            }}
-          >
-            Command your sales floor with total operational clarity.
-          </h1>
-
-          <p style={{ fontSize: '0.94rem', lineHeight: 1.55, color: '#94A3B8', margin: '0 0 2rem 0' }}>
-            Multi-salesperson oversight, automated lead distribution, quotation governance, and live WhatsApp engagement logs.
-          </p>
-
-          {/* Pillars */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '6px',
-                  backgroundColor: '#13181F',
-                  border: '1px solid #28303B',
-                  color: '#F68713',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <Users size={14} />
-              </div>
-              <span style={{ fontSize: '0.86rem', color: '#CBD5E1', fontWeight: '600' }}>
-                <strong>Team Governance:</strong> Real-time quota, claim velocity, and rep management.
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '6px',
-                  backgroundColor: '#13181F',
-                  border: '1px solid #28303B',
-                  color: '#2A9CB8',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <Layers size={14} />
-              </div>
-              <span style={{ fontSize: '0.86rem', color: '#CBD5E1', fontWeight: '600' }}>
-                <strong>Quotation Approvals:</strong> Rapid estimate reviews, negotiations, and delivery.
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '6px',
-                  backgroundColor: '#13181F',
-                  border: '1px solid #28303B',
-                  color: '#16A34A',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <Zap size={14} />
-              </div>
-              <span style={{ fontSize: '0.86rem', color: '#CBD5E1', fontWeight: '600' }}>
-                <strong>Smart Distribution:</strong> First-to-claim pools and automatic round-robin leads.
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Security */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.74rem', color: '#64748B', zIndex: 2 }}>
-          <ShieldCheck size={14} color="#2A9CB8" />
-          <span>SurfSync Enterprise Security · Company Session Isolated</span>
-        </div>
-      </section>
-
-      {/* Right Login Form Pane */}
-      <section
-        style={{
-          flex: '1',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '2.5rem 2rem',
-          backgroundColor: '#F6F7F9',
-        }}
-        className="company-login-form-pane"
-      >
-        <div
-          style={{
-            width: '100%',
-            maxWidth: '440px',
-            backgroundColor: '#FFFFFF',
-            borderRadius: '16px',
-            border: '1px solid #E6E9EE',
-            padding: '2.25rem 2rem',
-            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.04), 0 8px 10px -6px rgba(0, 0, 0, 0.02)',
-            boxSizing: 'border-box',
-          }}
-        >
-          {/* 1. STANDARD LOGIN FORM */}
+        {/* 1. STANDARD LOGIN FORM */}
           {mode === 'login' && (
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
               <div>
@@ -902,26 +708,6 @@ export default function CompanyLoginPage() {
             </div>
           )}
         </div>
-      </section>
-
-      {/* Responsive Styles */}
-      <style>{`
-        @media (max-width: 900px) {
-          .company-login-container {
-            flex-direction: column !important;
-          }
-          .company-login-hero {
-            padding: 2rem 1.5rem !important;
-            flex: none !important;
-          }
-          .company-login-hero h1 {
-            font-size: 1.75rem !important;
-          }
-          .company-login-form-pane {
-            padding: 2rem 1.25rem !important;
-          }
-        }
-      `}</style>
-    </div>
+      </div>
   );
 }
