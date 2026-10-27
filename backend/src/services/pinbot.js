@@ -65,16 +65,21 @@ function buildMedia(to, kind, link, caption) {
 /** Body-only text template; `params` are positional {{1}}, {{2}}... values. */
 function buildTemplate(to, name, language = 'en', params = [], extraComponents = []) {
   const components = [];
-  if (params.length) {
+  if (params && params.length) {
     components.push({
       type: 'body',
       parameters: params.map((text) => ({ type: 'text', text: String(text) })),
     });
   }
+  const template = { name, language: { code: language } };
+  const allComponents = [...components, ...(extraComponents || [])];
+  if (allComponents.length > 0) {
+    template.components = allComponents;
+  }
   return {
     ...baseMessage(to),
     type: 'template',
-    template: { name, language: { code: language }, components: [...components, ...extraComponents] },
+    template,
   };
 }
 

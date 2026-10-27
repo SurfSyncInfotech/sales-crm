@@ -66,7 +66,7 @@ async function loadLead(companyId, leadId) {
     `SELECT l.*, u.name AS assigned_name, c.name AS company_name
      FROM leads l
      LEFT JOIN users u ON u.id = l.assigned_to
-     JOIN companies c ON c.id = l.company_id
+     LEFT JOIN companies c ON c.id = l.company_id
      WHERE l.id = ? AND l.company_id = ? LIMIT 1`,
     [leadId, companyId]
   );
@@ -78,8 +78,17 @@ async function loadLead(companyId, leadId) {
  * minus `to` (built by the caller via pinbot.build*), `summary` is what the timeline shows.
  */
 async function sendToLead({ companyId, leadId, build, msgType, body, purpose = null, sentBy = null, toPhone = null }) {
-  const settings = await getSettings(companyId);
-  if (!settings || !settings.is_active || !settings.api_key || !settings.phone_number_id) {
+  const dbSettings = await getSettings(companyId);
+  const settings = {
+    ...dbSettings,
+    api_key: dbSettings?.api_key || process.env.PINBOT_API_KEY,
+    phone_number_id: dbSettings?.phone_number_id || process.env.PINBOT_PHONE_NUMBER_ID,
+    waba_id: dbSettings?.waba_id || null,
+    default_country_code: dbSettings?.default_country_code || '91',
+    is_active: dbSettings?.is_active !== undefined ? dbSettings.is_active : 1,
+  };
+
+  if (!settings.is_active || !settings.api_key || !settings.phone_number_id) {
     const err = new Error('WhatsApp is not configured for this company');
     err.status = 400;
     throw err;
@@ -148,29 +157,47 @@ async function sendToLead({ companyId, leadId, build, msgType, body, purpose = n
 
 function fillParams(templateParams, lead) {
   const values = {
-    name: lead.name || '',
-    company: lead.company_name || '',
-    salesperson: lead.assigned_name || '',
+    name: lead?.name || '',
+    company: lead?.company_name || '',
+    salesperson: lead?.assigned_name || '',
   };
   const list = typeof templateParams === 'string' ? JSON.parse(templateParams || '[]') : templateParams || [];
   return list.map((p) => String(p).replace(/\{\{\s*(name|company|salesperson)\s*\}\}/g, (_, k) => values[k]));
 }
 
 /**
- * Send the approved welcome template once per lead. Fire-and-forget safe: never throws.
+ * Send the approved greeting/welcome template once per lead upon ingestion. Fire-and-forget safe: never throws.
  * Duplicate protection: skips when a welcome message was already queued/sent for the lead.
  */
 async function sendWelcomeIfEnabled(lead) {
   try {
-    const settings = await getSettings(lead.company_id);
-    if (!settings?.is_active || !settings.auto_welcome || !settings.welcome_template_name || !lead.phone) return null;
+    const dbSettings = (await getSettings(lead.company_id)) || {};
+    const settings = {
+      ...dbSettings,
+      api_key: dbSettings.api_key || process.env.PINBOT_API_KEY,
+      phone_number_id: dbSettings.phone_number_id || process.env.PINBOT_PHONE_NUMBER_ID,
+      auto_welcome: dbSettings.auto_welcome !== undefined ? Number(dbSettings.auto_welcome) : 1,
+      welcome_template_name: dbSettings.welcome_template_name || 'greetings',
+      welcome_template_lang: dbSettings.welcome_template_lang || 'en',
+      is_active: dbSettings.is_active !== undefined ? dbSettings.is_active : 1,
+    };
+
+    if (!settings.is_active || !settings.auto_welcome || !settings.welcome_template_name || !lead.phone) {
+      console.log(`[WhatsApp Welcome] Skipping greeting for lead #${lead.id}: active=${settings.is_active}, autoWelcome=${settings.auto_welcome}, template=${settings.welcome_template_name}, phone=${lead.phone}`);
+      return null;
+    }
 
     const [dupe] = await pool.query(
       `SELECT id FROM whatsapp_messages
        WHERE lead_id = ? AND purpose = 'welcome' AND status <> 'failed' LIMIT 1`,
       [lead.id]
     );
-    if (dupe[0]) return null;
+    if (dupe[0]) {
+      console.log(`[WhatsApp Welcome] Lead #${lead.id} already received greeting message.`);
+      return null;
+    }
+
+    console.log(`[WhatsApp Welcome] Ingest greeting: sending template '${settings.welcome_template_name}' (${settings.welcome_template_lang}) to lead #${lead.id} (${lead.phone})...`);
 
     return await sendToLead({
       companyId: lead.company_id,
@@ -178,11 +205,16 @@ async function sendWelcomeIfEnabled(lead) {
       msgType: 'template',
       purpose: 'welcome',
       body: `Template: ${settings.welcome_template_name}`,
-      build: (to, { lead: full, settings: s }) =>
-        pinbot.buildTemplate(to, s.welcome_template_name, s.welcome_template_lang, fillParams(s.welcome_params, full)),
+      build: (to, { lead: full }) =>
+        pinbot.buildTemplate(
+          to,
+          settings.welcome_template_name,
+          settings.welcome_template_lang,
+          fillParams(settings.welcome_params, full)
+        ),
     });
   } catch (err) {
-    console.error(`Welcome WhatsApp failed for lead ${lead.id}:`, err.message);
+    console.error(`[WhatsApp Welcome] Error sending greeting for lead #${lead.id}:`, err.message);
     return null;
   }
 }
