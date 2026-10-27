@@ -89,9 +89,9 @@ export default function WhatsAppChatModal({ isOpen, onClose, initialSalespersonI
   }, [search]);
 
   // Load messages for selected lead
-  async function loadMessages(leadId) {
+  async function loadMessages(leadId, silent = false) {
     if (!leadId) return;
-    setLoadingChat(true);
+    if (!silent) setLoadingChat(true);
     try {
       const res = await companyApi.whatsappMessages(leadId);
       setActiveLead(res.lead || null);
@@ -100,15 +100,23 @@ export default function WhatsAppChatModal({ isOpen, onClose, initialSalespersonI
     } catch (err) {
       console.error('Failed to load messages for lead:', err);
     } finally {
-      setLoadingChat(false);
+      if (!silent) setLoadingChat(false);
     }
   }
 
   useEffect(() => {
-    if (selectedLeadId) {
+    if (selectedLeadId && isOpen) {
       loadMessages(selectedLeadId);
+
+      // 5-second polling while chat is open for live WhatsApp experience
+      const interval = setInterval(() => {
+        loadMessages(selectedLeadId, true);
+        loadConversations(selectedSalesperson, search);
+      }, 5000);
+
+      return () => clearInterval(interval);
     }
-  }, [selectedLeadId]);
+  }, [selectedLeadId, isOpen, selectedSalesperson, search]);
 
   // Auto scroll to bottom
   useEffect(() => {

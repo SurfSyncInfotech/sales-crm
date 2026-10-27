@@ -42,6 +42,11 @@ export default function CompaniesPage() {
   const [form, setForm] = useState(emptyForm);
   const [expandedId, setExpandedId] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [editingCompany, setEditingCompany] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -99,6 +104,63 @@ export default function CompaniesPage() {
       setError(err.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  function openEditModal(company) {
+    setEditingCompany(company);
+    setEditForm({
+      name: company.name || '',
+      slug: company.slug || '',
+      email: company.email || '',
+      phone: company.phone || '',
+      admin_name: company.admin_name || '',
+      admin_email: company.admin_email || '',
+      admin_password: '',
+      industry: company.industry || '',
+      city: company.city || '',
+      state: company.state || '',
+      country: company.country || 'India',
+      plan_id: company.plan_id ? String(company.plan_id) : '',
+      billing_cycle: company.billing_cycle || 'monthly',
+      status: company.status || 'active',
+      notes: company.notes || '',
+    });
+    setEditError('');
+  }
+
+  function closeEditModal() {
+    setEditingCompany(null);
+    setEditForm({});
+    setEditError('');
+  }
+
+  function updateEditField(key, value) {
+    setEditForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSaveEdit(e) {
+    e.preventDefault();
+    if (!editingCompany) return;
+    setEditBusy(true);
+    setEditError('');
+    try {
+      await companiesApi.update(editingCompany.id, {
+        ...editForm,
+        plan_id: editForm.plan_id ? Number(editForm.plan_id) : null,
+      });
+      setSuccessMsg(`Company "${editForm.name}" updated successfully!`);
+      setTimeout(() => setSuccessMsg(''), 4000);
+      closeEditModal();
+      await load();
+      if (expandedId === editingCompany.id) {
+        const data = await companiesApi.get(editingCompany.id);
+        setDetail(data);
+      }
+    } catch (err) {
+      setEditError(err.message || 'Failed to update company');
+    } finally {
+      setEditBusy(false);
     }
   }
 
@@ -176,6 +238,11 @@ export default function CompaniesPage() {
       </div>
 
       {error && <div className="alert">{error}</div>}
+      {successMsg && (
+        <div className="alert" style={{ backgroundColor: '#DCFCE7', color: '#166534', borderColor: '#BBF7D0' }}>
+          {successMsg}
+        </div>
+      )}
 
       {showForm && (
         <form className="panel form-grid" onSubmit={handleCreate}>
@@ -357,6 +424,14 @@ export default function CompaniesPage() {
                           </button>
                           <button
                             type="button"
+                            className="gov-btn"
+                            style={{ color: '#2563EB', borderColor: '#BFDBFE', backgroundColor: '#EFF6FF', fontWeight: 700 }}
+                            onClick={() => openEditModal(c)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
                             className="gov-btn gov-btn-primary"
                             disabled={!c.slug || ['suspended', 'cancelled'].includes(c.status)}
                             onClick={() => window.open(`/c/${c.slug}/login`, '_blank', 'noopener,noreferrer')}
@@ -443,6 +518,14 @@ export default function CompaniesPage() {
                               <div className="gov-detail-section">
                                 <h4>Status actions</h4>
                                 <div className="gov-actions">
+                                  <button
+                                    type="button"
+                                    className="gov-btn"
+                                    style={{ backgroundColor: '#2563EB', color: '#FFFFFF', borderColor: '#2563EB', fontWeight: 700 }}
+                                    onClick={() => openEditModal(detail.company)}
+                                  >
+                                    ✏️ Edit Company Details
+                                  </button>
                                   <button
                                     type="button"
                                     className="gov-btn gov-btn-primary"
@@ -592,6 +675,384 @@ export default function CompaniesPage() {
         </div>
         </div>
       </div>
+
+      {/* Edit Company Modal */}
+      {editingCompany && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1.25rem',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !editBusy) closeEditModal();
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              maxWidth: '680px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              border: '1px solid #E2E8F0',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '1.25rem 1.5rem',
+                borderBottom: '1px solid #E2E8F0',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                backgroundColor: '#F8FAFC',
+                borderTopLeftRadius: '16px',
+                borderTopRightRadius: '16px',
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0F172A' }}>
+                  Edit Company Details
+                </h3>
+                <p style={{ margin: '3px 0 0', fontSize: '0.8rem', color: '#64748B' }}>
+                  Updating company ID #{editingCompany.id}: {editingCompany.name}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditModal}
+                disabled={editBusy}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.2rem',
+                  color: '#64748B',
+                  cursor: 'pointer',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body / Form */}
+            <form onSubmit={handleSaveEdit} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {editError && (
+                <div style={{ padding: '0.75rem 1rem', borderRadius: '8px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', fontSize: '0.85rem' }}>
+                  {editError}
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                  Company Name *
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => updateEditField('name', e.target.value)}
+                    required
+                    style={{
+                      height: '38px',
+                      padding: '0 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                  Slug (Login Path) *
+                  <input
+                    type="text"
+                    value={editForm.slug}
+                    onChange={(e) => updateEditField('slug', e.target.value)}
+                    required
+                    placeholder="e.g. surfsync"
+                    style={{
+                      height: '38px',
+                      padding: '0 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                    }}
+                  />
+                  <small style={{ fontSize: '0.72rem', color: '#2563EB', fontWeight: 600 }}>
+                    Login URL: /c/{editForm.slug || 'slug'}/login
+                  </small>
+                </label>
+
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                  Official Email *
+                  <input
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => updateEditField('email', e.target.value)}
+                    required
+                    style={{
+                      height: '38px',
+                      padding: '0 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                  Phone Number
+                  <input
+                    type="tel"
+                    value={editForm.phone}
+                    onChange={(e) => updateEditField('phone', e.target.value)}
+                    style={{
+                      height: '38px',
+                      padding: '0 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                  Industry
+                  <input
+                    type="text"
+                    value={editForm.industry}
+                    onChange={(e) => updateEditField('industry', e.target.value)}
+                    placeholder="e.g. IT & Software Services"
+                    style={{
+                      height: '38px',
+                      padding: '0 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                  Status
+                  <select
+                    value={editForm.status}
+                    onChange={(e) => updateEditField('status', e.target.value)}
+                    style={{
+                      height: '38px',
+                      padding: '0 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                      backgroundColor: '#FFFFFF',
+                    }}
+                  >
+                    <option value="active">Active</option>
+                    <option value="trial">Trial</option>
+                    <option value="suspended">Suspended</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </label>
+
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                  City
+                  <input
+                    type="text"
+                    value={editForm.city}
+                    onChange={(e) => updateEditField('city', e.target.value)}
+                    style={{
+                      height: '38px',
+                      padding: '0 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                  State
+                  <input
+                    type="text"
+                    value={editForm.state}
+                    onChange={(e) => updateEditField('state', e.target.value)}
+                    style={{
+                      height: '38px',
+                      padding: '0 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                  Subscription Plan
+                  <select
+                    value={editForm.plan_id || ''}
+                    onChange={(e) => updateEditField('plan_id', e.target.value)}
+                    style={{
+                      height: '38px',
+                      padding: '0 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                      backgroundColor: '#FFFFFF',
+                    }}
+                  >
+                    <option value="">No Plan / Trial</option>
+                    {plans.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({money(p.price_monthly)}/mo)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                  Billing Cycle
+                  <select
+                    value={editForm.billing_cycle || 'monthly'}
+                    onChange={(e) => updateEditField('billing_cycle', e.target.value)}
+                    style={{
+                      height: '38px',
+                      padding: '0 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                      backgroundColor: '#FFFFFF',
+                    }}
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </label>
+              </div>
+
+              {/* Administrator Account Section */}
+              <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: '1rem', marginTop: '0.25rem' }}>
+                <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0F172A', margin: '0 0 0.75rem 0' }}>
+                  Company Administrator Account
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                    Admin Full Name
+                    <input
+                      type="text"
+                      value={editForm.admin_name || ''}
+                      onChange={(e) => updateEditField('admin_name', e.target.value)}
+                      placeholder="e.g. Kritika"
+                      style={{
+                        height: '38px',
+                        padding: '0 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.88rem',
+                        outline: 'none',
+                      }}
+                    />
+                  </label>
+
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                    Admin Login Email *
+                    <input
+                      type="email"
+                      value={editForm.admin_email || ''}
+                      onChange={(e) => updateEditField('admin_email', e.target.value)}
+                      placeholder="e.g. info@surfsyncinfotech.in"
+                      style={{
+                        height: '38px',
+                        padding: '0 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.88rem',
+                        outline: 'none',
+                      }}
+                    />
+                  </label>
+
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                    Reset Admin Password (Optional)
+                    <input
+                      type="password"
+                      value={editForm.admin_password || ''}
+                      onChange={(e) => updateEditField('admin_password', e.target.value)}
+                      placeholder="Leave blank to keep existing password"
+                      style={{
+                        height: '38px',
+                        padding: '0 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.88rem',
+                        outline: 'none',
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                Notes / Internal Remarks
+                <textarea
+                  value={editForm.notes}
+                  onChange={(e) => updateEditField('notes', e.target.value)}
+                  rows={2}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '0.88rem',
+                    outline: 'none',
+                    resize: 'vertical',
+                  }}
+                />
+              </label>
+
+              {/* Modal Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '0.5rem', borderTop: '1px solid #F1F5F9', paddingTop: '1rem' }}>
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  disabled={editBusy}
+                  className="gov-btn"
+                  style={{ padding: '0.55rem 1.25rem' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editBusy}
+                  className="gov-btn gov-btn-primary"
+                  style={{ padding: '0.55rem 1.5rem', backgroundColor: '#F68713', borderColor: '#F68713', color: '#FFFFFF', fontWeight: 700 }}
+                >
+                  {editBusy ? 'Saving Changes…' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

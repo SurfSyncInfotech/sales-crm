@@ -10,13 +10,16 @@ import {
   Trophy,
   XCircle,
   Search,
-  Bell,
   Phone,
   MessageCircle,
   Zap,
   ArrowRight,
   Star,
   CheckCircle2,
+  TrendingUp,
+  AlertCircle,
+  Activity,
+  Layers,
 } from 'lucide-react';
 
 function timeAgo(date) {
@@ -24,11 +27,11 @@ function timeAgo(date) {
   const seconds = Math.floor((new Date() - new Date(date)) / 1000);
   if (seconds < 60) return 'Just now';
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} mins ago`;
+  if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  return `${days} day${days > 1 ? 's' : ''} ago`;
+  return `${days}d ago`;
 }
 
 export default function SalesDashboardPage() {
@@ -42,10 +45,11 @@ export default function SalesDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [claimingId, setClaimingId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  async function loadData() {
+  async function loadData(silent = false) {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError('');
       const [statsRes, poolRes, pipeRes, tasksRes, actRes] = await Promise.all([
         salesApi.stats(),
@@ -58,439 +62,369 @@ export default function SalesDashboardPage() {
       setPoolLeads((poolRes.leads || []).slice(0, 5));
       setPipelineData(pipeRes.pipeline || {});
       setTasks((tasksRes.followups || []).slice(0, 5));
-      setActivities((actRes.activities || []).slice(0, 5));
+      setActivities((actRes.activities || []).slice(0, 6));
     } catch (err) {
-      setError(err.message || 'Failed to load dashboard data');
+      if (!silent) setError(err.message || 'Failed to load dashboard data');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
   useEffect(() => {
     loadData();
+
+    // Background polling every 15 seconds
+    const interval = setInterval(() => {
+      loadData(true);
+    }, 15000);
+
+    return () => clearInterval(interval);
   }, []);
 
   async function handleClaim(leadId) {
     setClaimingId(leadId);
     try {
       await salesApi.claimLead(leadId);
-      await loadData();
+      await loadData(true);
       navigate('/sales/pipeline');
     } catch (err) {
       alert(err.message || 'Could not claim lead');
-      loadData();
+      loadData(true);
     } finally {
       setClaimingId(null);
     }
   }
 
-  // Calculate funnel counts directly from DB
+  function handleSearchSubmit(e) {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/sales/leads?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  }
+
+  // Pipeline funnel steps
   const funnel = [
-    { label: 'New Leads', count: pipelineData.new_pool?.length || stats?.pool_leads || 0, color: '#60a5fa' },
-    { label: 'Contacted', count: pipelineData.contacted?.length || 0, color: '#2dd4bf' },
-    { label: 'Interested', count: pipelineData.interested?.length || 0, color: '#4ade80' },
-    { label: 'Follow-Up', count: pipelineData.followup?.length || 0, color: '#facc15' },
-    { label: 'Quote Requested', count: pipelineData.quotation_requested?.length || stats?.pending_quotes || 0, color: '#fb923c' },
-    { label: 'Quote Sent', count: pipelineData.quotation_sent?.length || 0, color: '#f87171' },
-    { label: 'Won', count: pipelineData.won?.length || stats?.won || 0, color: '#c084fc' },
-    { label: 'Lost', count: pipelineData.lost?.length || stats?.lost || 0, color: '#f472b6' },
-    { label: 'Not Interested', count: pipelineData.not_interested?.length || 0, color: '#94a3b8' },
+    { label: 'New Leads', count: pipelineData.new_pool?.length || stats?.pool_leads || 0, color: '#2A9CB8' },
+    { label: 'Contacted', count: pipelineData.contacted?.length || 0, color: '#38BDF8' },
+    { label: 'Interested', count: pipelineData.interested?.length || 0, color: '#34D399' },
+    { label: 'Follow-Up', count: pipelineData.followup?.length || 0, color: '#FBBF24' },
+    { label: 'Quote Req.', count: pipelineData.quotation_requested?.length || stats?.pending_quotes || 0, color: '#F68713' },
+    { label: 'Quote Sent', count: pipelineData.quotation_sent?.length || 0, color: '#818CF8' },
+    { label: 'Won', count: pipelineData.won?.length || stats?.won || 0, color: '#16A34A' },
+    { label: 'Lost', count: pipelineData.lost?.length || stats?.lost || 0, color: '#DC2626' },
   ];
 
   const maxCount = Math.max(...funnel.map((f) => f.count), 1);
-
-  // Conversion calculations from real DB counts
   const totalLeadsCount = funnel.reduce((acc, curr) => acc + curr.count, 0);
   const wonCount = pipelineData.won?.length || stats?.won || 0;
   const activeLeadsCount = (stats?.my_leads || 0) + (stats?.pool_leads || 0);
-  // Salesperson Conversion Rate based on Total Claimed Leads (does not drop on Not Interested)
-  const claimedTotal = stats?.my_total_leads || ((stats?.my_leads || 0) + wonCount + (stats?.lost || 0) + (stats?.not_interested || 0));
-  const conversionRate = claimedTotal > 0 ? Math.min(100, Math.round((wonCount / claimedTotal) * 100)) : 0;
 
-  // Mini sparkline renderer
-  const renderSparkline = (color) => (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '24px' }}>
-      <div style={{ width: '4px', height: '8px', backgroundColor: color, borderRadius: '2px', opacity: 0.5 }} />
-      <div style={{ width: '4px', height: '14px', backgroundColor: color, borderRadius: '2px', opacity: 0.7 }} />
-      <div style={{ width: '4px', height: '11px', backgroundColor: color, borderRadius: '2px', opacity: 0.6 }} />
-      <div style={{ width: '4px', height: '19px', backgroundColor: color, borderRadius: '2px', opacity: 0.9 }} />
-      <div style={{ width: '4px', height: '24px', backgroundColor: color, borderRadius: '2px' }} />
-    </div>
-  );
+  const claimedTotal =
+    stats?.my_total_leads ||
+    (stats?.my_leads || 0) + wonCount + (stats?.lost || 0) + (stats?.not_interested || 0);
+  const conversionRate =
+    claimedTotal > 0 ? Math.min(100, Math.round((wonCount / claimedTotal) * 100)) : 0;
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Top Header Row with Search & Notification */}
+    <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {/* Top Hero Section */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-            Dashboard
+          <h1 style={{ fontSize: '1.65rem', fontWeight: '800', color: '#111827', margin: 0, letterSpacing: '-0.025em' }}>
+            Sales Overview
           </h1>
-          <p style={{ margin: '0.2rem 0 0 0', color: '#64748b', fontSize: '0.88rem' }}>
-            Welcome back, {user?.name || 'Sales Rep'}! Here's your sales overview for today.
+          <p style={{ margin: '0.25rem 0 0 0', color: '#6B7280', fontSize: '0.86rem' }}>
+            Welcome back, <strong style={{ color: '#111827' }}>{user?.name || 'Representative'}</strong>. Real-time lead flow and operational velocity.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* Search Box */}
-          <div style={{ position: 'relative', width: '320px' }}>
-            <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '10px' }} />
+        {/* Global Search form */}
+        <form onSubmit={handleSearchSubmit} style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '280px' }}>
+          <div style={{ position: 'relative', width: '100%' }}>
+            <Search size={15} color="#9CA3AF" style={{ position: 'absolute', left: '12px', top: '10px' }} />
             <input
               type="text"
-              placeholder="Search leads, clients, or companies..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search leads, phone, company..."
               style={{
                 width: '100%',
                 boxSizing: 'border-box',
                 padding: '8px 12px 8px 36px',
-                borderRadius: '999px',
-                border: '1px solid #e2e8f0',
-                backgroundColor: '#fff',
+                borderRadius: '8px',
+                border: '1px solid #E6E9EE',
+                backgroundColor: '#FFFFFF',
                 fontSize: '0.82rem',
+                color: '#111827',
                 outline: 'none',
               }}
+              onFocus={(e) => (e.target.style.borderColor = '#F68713')}
+              onBlur={(e) => (e.target.style.borderColor = '#E6E9EE')}
             />
           </div>
-
-          {/* Bell Icon */}
-          <div
-            style={{
-              position: 'relative',
-              width: '38px',
-              height: '38px',
-              borderRadius: '50%',
-              backgroundColor: '#fff',
-              border: '1px solid #e2e8f0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <Bell size={18} color="#475569" />
-            {(stats?.due_reminders || 0) > 0 && (
-              <span
-                style={{
-                  position: 'absolute',
-                  top: '6px',
-                  right: '7px',
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: '#ef4444',
-                  border: '2px solid #fff',
-                }}
-              />
-            )}
-          </div>
-        </div>
+          <button type="submit" className="btn-secondary-action" style={{ padding: '0.5rem 0.85rem', fontSize: '0.8rem' }}>
+            Search
+          </button>
+        </form>
       </div>
 
-      {error && <div className="alert alert-danger">{error}</div>}
+      {error && (
+        <div style={{ padding: '0.75rem 1rem', backgroundColor: '#FEE2E2', border: '1px solid #FECACA', borderRadius: '8px', color: '#DC2626', fontSize: '0.84rem' }}>
+          {error}
+        </div>
+      )}
 
-      {/* 6 Top Metric Cards (Direct from Live DB) */}
+      {/* SurfSync KPI Stat Widget Matrix (Component 3.1) */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
           gap: '1rem',
         }}
       >
-        {/* Card 1: Open Lead Pool */}
+        {/* KPI 1: Open Lead Pool */}
         <Link to="/sales/leads?tab=pool" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div
-            style={{
-              backgroundColor: '#fff',
-              borderRadius: '12px',
-              padding: '1.15rem',
-              border: '1px solid #edf2f7',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              cursor: 'pointer',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="sales-card" style={{ padding: '1.2rem', cursor: 'pointer', height: '100%', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: '600', color: '#6B7280' }}>
+                Open Lead Pool
+              </span>
               <div
                 style={{
-                  width: '34px',
-                  height: '34px',
+                  width: '32px',
+                  height: '32px',
                   borderRadius: '8px',
-                  backgroundColor: '#eff6ff',
-                  color: '#3b82f6',
+                  backgroundColor: '#E8F6FA', // Ocean Cyan soft
+                  color: '#2A9CB8',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Users size={17} />
+                <Users size={16} />
               </div>
             </div>
-            <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#64748b', marginTop: '0.75rem' }}>
-              Open Lead Pool
+            <div className="num" style={{ fontSize: '1.75rem', fontWeight: '800', color: '#111827', marginTop: '0.6rem', lineHeight: 1.1 }}>
+              {stats?.pool_leads ?? 0}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '0.2rem' }}>
-              <div style={{ fontSize: '1.9rem', fontWeight: '800', color: '#0f172a', lineHeight: 1 }}>
-                {stats?.pool_leads ?? 0}
-              </div>
-              {renderSparkline('#3b82f6')}
-            </div>
-            <div style={{ fontSize: '0.74rem', color: '#16a34a', fontWeight: '700', marginTop: '0.5rem' }}>
-              Available in pool
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '0.5rem' }}>
+              <span className="badge-status" style={{ backgroundColor: '#E8F6FA', color: '#1D667C', padding: '2px 6px', fontSize: '0.68rem' }}>
+                Unclaimed
+              </span>
+              <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>Ready to claim</span>
             </div>
           </div>
         </Link>
 
-        {/* Card 2: My Claimed Leads */}
+        {/* KPI 2: My Active Leads */}
         <Link to="/sales/leads?tab=my" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div
-            style={{
-              backgroundColor: '#fff',
-              borderRadius: '12px',
-              padding: '1.15rem',
-              border: '1px solid #edf2f7',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              cursor: 'pointer',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="sales-card" style={{ padding: '1.2rem', cursor: 'pointer', height: '100%', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: '600', color: '#6B7280' }}>
+                My Pipeline
+              </span>
               <div
                 style={{
-                  width: '34px',
-                  height: '34px',
+                  width: '32px',
+                  height: '32px',
                   borderRadius: '8px',
-                  backgroundColor: '#ecfdf5',
-                  color: '#10b981',
+                  backgroundColor: '#FFF3E6', // Tangerine soft
+                  color: '#F68713',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <UserCheck size={17} />
+                <UserCheck size={16} />
               </div>
             </div>
-            <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#64748b', marginTop: '0.75rem' }}>
-              My Claimed Leads
+            <div className="num" style={{ fontSize: '1.75rem', fontWeight: '800', color: '#111827', marginTop: '0.6rem', lineHeight: 1.1 }}>
+              {stats?.my_leads ?? 0}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '0.2rem' }}>
-              <div style={{ fontSize: '1.9rem', fontWeight: '800', color: '#0f172a', lineHeight: 1 }}>
-                {stats?.my_total_leads ?? stats?.my_leads ?? 0}
-              </div>
-              {renderSparkline('#10b981')}
-            </div>
-            <div style={{ fontSize: '0.74rem', color: '#16a34a', fontWeight: '700', marginTop: '0.5rem' }}>
-              {stats?.my_leads ?? 0} active in pipeline
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '0.5rem' }}>
+              <span className="badge-status" style={{ backgroundColor: '#DCFCE7', color: '#166534', padding: '2px 6px', fontSize: '0.68rem' }}>
+                Active
+              </span>
+              <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>In discussion</span>
             </div>
           </div>
         </Link>
 
-        {/* Card 3: Quotes Pending Admin */}
+        {/* KPI 3: Quotes Pending Admin */}
         <Link to="/sales/pipeline" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div
-            style={{
-              backgroundColor: '#fff',
-              borderRadius: '12px',
-              padding: '1.15rem',
-              border: '1px solid #edf2f7',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              cursor: 'pointer',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="sales-card" style={{ padding: '1.2rem', cursor: 'pointer', height: '100%', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: '600', color: '#6B7280' }}>
+                Pending Quotes
+              </span>
               <div
                 style={{
-                  width: '34px',
-                  height: '34px',
+                  width: '32px',
+                  height: '32px',
                   borderRadius: '8px',
-                  backgroundColor: '#fffbeb',
-                  color: '#f59e0b',
+                  backgroundColor: '#FEF3C7', // Amber warning soft
+                  color: '#CA8A04',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <FileText size={17} />
+                <FileText size={16} />
               </div>
             </div>
-            <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#64748b', marginTop: '0.75rem' }}>
-              Quotes Pending Admin
+            <div className="num" style={{ fontSize: '1.75rem', fontWeight: '800', color: '#111827', marginTop: '0.6rem', lineHeight: 1.1 }}>
+              {stats?.pending_quotes ?? 0}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '0.2rem' }}>
-              <div style={{ fontSize: '1.9rem', fontWeight: '800', color: '#0f172a', lineHeight: 1 }}>
-                {stats?.pending_quotes ?? 0}
-              </div>
-              {renderSparkline('#f59e0b')}
-            </div>
-            <div style={{ fontSize: '0.74rem', color: '#ea580c', fontWeight: '700', marginTop: '0.5rem' }}>
-              Waiting for Admin quote
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '0.5rem' }}>
+              <span className="badge-status" style={{ backgroundColor: '#FEF3C7', color: '#92400E', padding: '2px 6px', fontSize: '0.68rem' }}>
+                Review
+              </span>
+              <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>Awaiting admin</span>
             </div>
           </div>
         </Link>
 
-        {/* Card 4: Due Auto-Reminders */}
+        {/* KPI 4: Due Auto-Reminders */}
         <Link to="/sales/reminders" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div
-            style={{
-              backgroundColor: '#fff',
-              borderRadius: '12px',
-              padding: '1.15rem',
-              border: '1px solid #edf2f7',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              cursor: 'pointer',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="sales-card" style={{ padding: '1.2rem', cursor: 'pointer', height: '100%', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: '600', color: '#6B7280' }}>
+                Follow-Ups Due
+              </span>
               <div
                 style={{
-                  width: '34px',
-                  height: '34px',
+                  width: '32px',
+                  height: '32px',
                   borderRadius: '8px',
-                  backgroundColor: '#f5f3ff',
-                  color: '#8b5cf6',
+                  backgroundColor: (stats?.due_reminders || 0) > 0 ? '#FEE2E2' : '#F1F3F6',
+                  color: (stats?.due_reminders || 0) > 0 ? '#DC2626' : '#6B7280',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Clock size={17} />
+                <Clock size={16} />
               </div>
             </div>
-            <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#64748b', marginTop: '0.75rem' }}>
-              Due Auto-Reminders
+            <div className="num" style={{ fontSize: '1.75rem', fontWeight: '800', color: '#111827', marginTop: '0.6rem', lineHeight: 1.1 }}>
+              {stats?.due_reminders ?? 0}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '0.2rem' }}>
-              <div style={{ fontSize: '1.9rem', fontWeight: '800', color: '#0f172a', lineHeight: 1 }}>
-                {stats?.due_reminders ?? 0}
-              </div>
-              {renderSparkline('#ec4899')}
-            </div>
-            <div style={{ fontSize: '0.74rem', color: (stats?.due_reminders || 0) > 0 ? '#e11d48' : '#64748b', fontWeight: '700', marginTop: '0.5rem' }}>
-              {(stats?.due_reminders || 0) > 0 ? `${stats.due_reminders} due now` : 'All caught up'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '0.5rem' }}>
+              <span
+                className="badge-status"
+                style={{
+                  backgroundColor: (stats?.due_reminders || 0) > 0 ? '#FEE2E2' : '#F1F3F6',
+                  color: (stats?.due_reminders || 0) > 0 ? '#DC2626' : '#4B5563',
+                  padding: '2px 6px',
+                  fontSize: '0.68rem',
+                }}
+              >
+                {(stats?.due_reminders || 0) > 0 ? 'Action Needed' : 'Cleared'}
+              </span>
+              <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>Scheduled cadence</span>
             </div>
           </div>
         </Link>
 
-        {/* Card 5: Won Deals */}
-        <div
-          style={{
-            backgroundColor: '#fff',
-            borderRadius: '12px',
-            padding: '1.15rem',
-            border: '1px solid #edf2f7',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* KPI 5: Won Deals */}
+        <div className="sales-card" style={{ padding: '1.2rem', height: '100%', boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: '600', color: '#6B7280' }}>
+              Deals Won
+            </span>
             <div
               style={{
-                width: '34px',
-                height: '34px',
+                width: '32px',
+                height: '32px',
                 borderRadius: '8px',
-                backgroundColor: '#f0fdf4',
-                color: '#16a34a',
+                backgroundColor: '#DCFCE7', // Success Green soft
+                color: '#16A34A',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <Trophy size={17} />
+              <Trophy size={16} />
             </div>
           </div>
-          <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#64748b', marginTop: '0.75rem' }}>
-            Won Deals
+          <div className="num" style={{ fontSize: '1.75rem', fontWeight: '800', color: '#111827', marginTop: '0.6rem', lineHeight: 1.1 }}>
+            {stats?.won ?? 0}
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '0.2rem' }}>
-            <div style={{ fontSize: '1.9rem', fontWeight: '800', color: '#0f172a', lineHeight: 1 }}>
-              {stats?.won ?? 0}
-            </div>
-            {renderSparkline('#16a34a')}
-          </div>
-          <div style={{ fontSize: '0.74rem', color: '#16a34a', fontWeight: '700', marginTop: '0.5rem' }}>
-            Converted clients
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '0.5rem' }}>
+            <span className="badge-status" style={{ backgroundColor: '#DCFCE7', color: '#166534', padding: '2px 6px', fontSize: '0.68rem' }}>
+              Won
+            </span>
+            <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>Successfully closed</span>
           </div>
         </div>
 
-        {/* Card 6: Lost / Not Interested Leads */}
+        {/* KPI 6: Lost / Dropped */}
         <Link to="/sales/leads?stage=not_interested" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div
-            style={{
-              backgroundColor: '#fff',
-              borderRadius: '12px',
-              padding: '1.15rem',
-              border: '1px solid #edf2f7',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              cursor: 'pointer',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="sales-card" style={{ padding: '1.2rem', cursor: 'pointer', height: '100%', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: '600', color: '#6B7280' }}>
+                Lost / Dropped
+              </span>
               <div
                 style={{
-                  width: '34px',
-                  height: '34px',
+                  width: '32px',
+                  height: '32px',
                   borderRadius: '8px',
-                  backgroundColor: '#fef2f2',
-                  color: '#ef4444',
+                  backgroundColor: '#F1F3F6',
+                  color: '#6B7280',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <XCircle size={17} />
+                <XCircle size={16} />
               </div>
             </div>
-            <div style={{ fontSize: '0.8rem', fontWeight: '600', color: '#64748b', marginTop: '0.75rem' }}>
-              Lost / Not Interested
+            <div className="num" style={{ fontSize: '1.75rem', fontWeight: '800', color: '#111827', marginTop: '0.6rem', lineHeight: 1.1 }}>
+              {(stats?.lost || 0) + (stats?.not_interested || 0)}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '0.2rem' }}>
-              <div style={{ fontSize: '1.9rem', fontWeight: '800', color: '#0f172a', lineHeight: 1 }}>
-                {(stats?.lost || 0) + (stats?.not_interested || 0)}
-              </div>
-              {renderSparkline('#ef4444')}
-            </div>
-            <div style={{ fontSize: '0.74rem', color: '#dc2626', fontWeight: '700', marginTop: '0.5rem' }}>
-              {stats?.not_interested || 0} not interested • {stats?.lost || 0} lost
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '0.5rem' }}>
+              <span className="badge-status" style={{ backgroundColor: '#F1F3F6', color: '#4B5563', padding: '2px 6px', fontSize: '0.68rem' }}>
+                Closed
+              </span>
+              <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>Not converted</span>
             </div>
           </div>
         </Link>
       </div>
 
-      {/* Middle Row: Funnel Overview, Conversion Rate, Today's Follow-ups */}
+      {/* Middle Grid: Funnel (Left) + Conversion Velocity (Center) + Today's Follow-Ups (Right) */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1.4fr 0.9fr 1fr',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
           gap: '1.25rem',
           alignItems: 'stretch',
         }}
       >
-        {/* Column 1: Sales Funnel Overview (Real DB Counts) */}
-        <div
-          style={{
-            backgroundColor: '#fff',
-            borderRadius: '14px',
-            padding: '1.35rem',
-            border: '1px solid #edf2f7',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+        {/* Pipeline Funnel Velocity */}
+        <div className="sales-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
             <div>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-                Sales Funnel Overview
+              <h3 style={{ fontSize: '0.98rem', fontWeight: '700', color: '#111827', margin: 0 }}>
+                Pipeline Stage Velocity
               </h3>
-              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.78rem', color: '#64748b' }}>
-                Your leads across the pipeline
+              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.78rem', color: '#6B7280' }}>
+                Real distribution of all leads in workflow
               </p>
             </div>
             <span
+              className="num"
               style={{
                 fontSize: '0.75rem',
-                backgroundColor: '#f1f5f9',
-                color: '#475569',
-                padding: '4px 8px',
+                backgroundColor: '#F1F3F6',
+                color: '#374151',
+                padding: '3px 8px',
                 borderRadius: '6px',
-                fontWeight: '600',
+                fontWeight: '700',
               }}
             >
-              Total: {totalLeadsCount} Leads
+              {totalLeadsCount} Total Leads
             </span>
           </div>
 
@@ -500,15 +434,15 @@ export default function SalesDashboardPage() {
               display: 'flex',
               alignItems: 'flex-end',
               justifyContent: 'space-between',
-              height: '160px',
-              paddingBottom: '2.5rem',
+              height: '150px',
+              paddingBottom: '2.2rem',
               position: 'relative',
               gap: '6px',
               flex: 1,
             }}
           >
             {funnel.map((item, idx) => {
-              const heightPct = maxCount > 0 ? Math.max(12, Math.round((item.count / maxCount) * 100)) : 12;
+              const heightPct = maxCount > 0 ? Math.max(10, Math.round((item.count / maxCount) * 100)) : 10;
               return (
                 <div
                   key={idx}
@@ -522,16 +456,17 @@ export default function SalesDashboardPage() {
                     position: 'relative',
                   }}
                 >
-                  <span style={{ fontSize: '0.78rem', fontWeight: '800', color: '#1e293b', marginBottom: '4px' }}>
+                  <span className="num" style={{ fontSize: '0.75rem', fontWeight: '700', color: '#111827', marginBottom: '4px' }}>
                     {item.count}
                   </span>
                   <div
                     style={{
                       width: '100%',
-                      maxWidth: '32px',
+                      maxWidth: '28px',
                       height: `${heightPct}%`,
                       backgroundColor: item.color,
                       borderRadius: '4px 4px 0 0',
+                      transition: 'height 0.3s ease',
                     }}
                   />
                   <span
@@ -539,12 +474,13 @@ export default function SalesDashboardPage() {
                       position: 'absolute',
                       bottom: 0,
                       fontSize: '0.66rem',
-                      color: '#64748b',
+                      fontWeight: '600',
+                      color: '#6B7280',
                       whiteSpace: 'nowrap',
                       textAlign: 'center',
                       transform: 'translateY(100%)',
                       paddingTop: '6px',
-                      maxWidth: '40px',
+                      maxWidth: '38px',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                     }}
@@ -558,33 +494,43 @@ export default function SalesDashboardPage() {
           </div>
         </div>
 
-        {/* Column 2: Conversion Rate Card (Real DB Numbers) */}
+        {/* Conversion Rate Card */}
         <div
+          className="sales-card"
           style={{
-            backgroundColor: '#072423',
-            color: '#fff',
-            borderRadius: '14px',
-            padding: '1.35rem',
+            padding: '1.25rem',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
+            backgroundColor: '#FFFFFF',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#e2e8f0' }}>Conversion Rate</span>
-            {/* <span style={{ color: '#10b981', fontSize: '0.75rem', fontWeight: '700' }}>Live DB</span> */}
+            <span style={{ fontSize: '0.98rem', fontWeight: '700', color: '#111827' }}>
+              Conversion Velocity
+            </span>
+            <span
+              className="badge-status"
+              style={{
+                backgroundColor: '#DCFCE7',
+                color: '#166534',
+                fontSize: '0.68rem',
+              }}
+            >
+              <TrendingUp size={11} /> Real-Time
+            </span>
           </div>
 
-          {/* Circular Gauge */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '0.8rem 0' }}>
-            <div style={{ position: 'relative', width: '110px', height: '110px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="110" height="110" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="40" stroke="#0e3d3b" strokeWidth="8" fill="none" />
+          {/* Metric display */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.5rem', margin: '1rem 0' }}>
+            <div style={{ position: 'relative', width: '96px', height: '96px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="96" height="96" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="40" stroke="#F1F3F6" strokeWidth="8" fill="none" />
                 <circle
                   cx="50"
                   cy="50"
                   r="40"
-                  stroke="#10b981"
+                  stroke="#F68713" // Tangerine brand accent
                   strokeWidth="8"
                   fill="none"
                   strokeDasharray="251.2"
@@ -594,77 +540,67 @@ export default function SalesDashboardPage() {
                 />
               </svg>
               <div style={{ position: 'absolute', textAlign: 'center' }}>
-                <span style={{ fontSize: '1.6rem', fontWeight: '900', color: '#fff' }}>{conversionRate}%</span>
+                <span className="num" style={{ fontSize: '1.45rem', fontWeight: '800', color: '#111827' }}>
+                  {conversionRate}%
+                </span>
               </div>
             </div>
-            <div style={{ fontSize: '0.78rem', color: '#cbd5e1', marginTop: '6px' }}>Claimed to Won Conversion</div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ fontSize: '0.86rem', fontWeight: '700', color: '#111827' }}>
+                Win Ratio
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>
+                Claimed to Won deals
+              </div>
+              <div className="num" style={{ fontSize: '0.78rem', color: '#16A34A', fontWeight: '700', marginTop: '2px' }}>
+                {wonCount} deals closed
+              </div>
+            </div>
           </div>
 
-          {/* Metrics Breakdown from Real DB */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.76rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.75rem' }}>
+          {/* Breakdown summary */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.78rem', borderTop: '1px solid #E6E9EE', paddingTop: '0.75rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8' }}>
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#38bdf8' }} /> Total Leads
-              </span>
-              <strong style={{ color: '#fff' }}>{totalLeadsCount}</strong>
+              <span style={{ color: '#6B7280' }}>Active in Pipeline</span>
+              <strong className="num" style={{ color: '#111827' }}>{activeLeadsCount}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8' }}>
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#34d399' }} /> Active In Funnel
-              </span>
-              <strong style={{ color: '#fff' }}>{activeLeadsCount}</strong>
+              <span style={{ color: '#6B7280' }}>Won Conversions</span>
+              <strong className="num" style={{ color: '#16A34A' }}>{wonCount}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8' }}>
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#facc15' }} /> Deals Won
-              </span>
-              <strong style={{ color: '#fff' }}>{wonCount}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8' }}>
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#f87171' }} /> Deals Lost
-              </span>
-              <strong style={{ color: '#fff' }}>{stats?.lost || 0}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8' }}>
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#94a3b8' }} /> Not Interested
-              </span>
-              <strong style={{ color: '#fff' }}>{stats?.not_interested ?? pipelineData.not_interested?.length ?? 0}</strong>
+              <span style={{ color: '#6B7280' }}>Lost / Dropped</span>
+              <strong className="num" style={{ color: '#DC2626' }}>{stats?.lost || 0}</strong>
             </div>
           </div>
         </div>
 
-        {/* Column 3: Today's Follow-Up Tasks (REAL DB DATA) */}
-        <div
-          style={{
-            backgroundColor: '#fff',
-            borderRadius: '14px',
-            padding: '1.25rem',
-            border: '1px solid #edf2f7',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3 style={{ fontSize: '0.98rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-              Today's Follow-Up Tasks
+        {/* Today's Follow-Up Tasks */}
+        <div className="sales-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+            <h3 style={{ fontSize: '0.98rem', fontWeight: '700', color: '#111827', margin: 0 }}>
+              Today's Cadence Tasks
             </h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ backgroundColor: '#fef2f2', color: '#ef4444', fontSize: '0.72rem', fontWeight: '700', padding: '2px 7px', borderRadius: '999px' }}>
-                {tasks.length} active
-              </span>
-              <ArrowRight size={14} color="#64748b" />
-            </div>
+            <span
+              className="badge-status"
+              style={{
+                backgroundColor: tasks.length > 0 ? '#FFF3E6' : '#F1F3F6',
+                color: tasks.length > 0 ? '#B65807' : '#4B5563',
+                fontSize: '0.68rem',
+              }}
+            >
+              {tasks.length} Due
+            </span>
           </div>
 
-          {/* Real Task list items from DB */}
+          {/* Task list items */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
             {tasks.length === 0 ? (
-              <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: '#94a3b8' }}>
-                <CheckCircle2 size={32} color="#10b981" style={{ margin: '0 auto 0.4rem auto' }} />
-                <p style={{ margin: 0, fontWeight: '600', fontSize: '0.85rem' }}>No pending follow-ups today</p>
-                <small style={{ fontSize: '0.75rem' }}>Leads moved to "Interested" or "Follow-Up" appear here.</small>
+              <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#6B7280', margin: 'auto' }}>
+                <CheckCircle2 size={28} color="#16A34A" style={{ margin: '0 auto 0.4rem auto' }} />
+                <p style={{ margin: 0, fontWeight: '600', fontSize: '0.82rem', color: '#111827' }}>No pending tasks</p>
+                <small style={{ fontSize: '0.74rem' }}>Scheduled auto-followups will appear here.</small>
               </div>
             ) : (
               tasks.map((task, i) => {
@@ -679,19 +615,19 @@ export default function SalesDashboardPage() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '6px 0',
-                      borderBottom: i < tasks.length - 1 ? '1px solid #f8fafc' : 'none',
+                      padding: '8px 0',
+                      borderBottom: i < tasks.length - 1 ? '1px solid #F1F3F6' : 'none',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                       <div
                         style={{
                           width: '28px',
                           height: '28px',
-                          borderRadius: '50%',
-                          backgroundColor: '#eff6ff',
-                          color: '#2563eb',
-                          fontSize: '0.75rem',
+                          borderRadius: '6px',
+                          backgroundColor: '#E8F6FA',
+                          color: '#2A9CB8',
+                          fontSize: '0.74rem',
                           fontWeight: '800',
                           display: 'flex',
                           alignItems: 'center',
@@ -702,37 +638,57 @@ export default function SalesDashboardPage() {
                         {initial}
                       </div>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#0f172a', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {task.name}
                         </div>
-                        <div style={{ fontSize: '0.7rem', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#6B7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {task.lead_company || task.phone || 'Inquiry'}
                         </div>
                       </div>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                      <span style={{ fontSize: '0.65rem', fontWeight: '700', backgroundColor: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px' }}>
+                      <span className="badge-status" style={{ backgroundColor: '#F1F3F6', color: '#374151', fontSize: '0.66rem', padding: '1px 6px' }}>
                         {statusBadge}
                       </span>
                       {task.phone && (
                         <div style={{ display: 'flex', gap: '4px' }}>
                           <a
                             href={`tel:${task.phone}`}
-                            style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '6px',
+                              backgroundColor: '#E8F6FA',
+                              color: '#2A9CB8',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textDecoration: 'none',
+                            }}
                             title="Call"
                           >
-                            <Phone size={10} />
+                            <Phone size={11} />
                           </a>
                           {waLink && (
                             <a
                               href={waLink}
                               target="_blank"
                               rel="noreferrer"
-                              style={{ width: '22px', height: '22px', borderRadius: '50%', backgroundColor: '#ecfdf5', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}
+                              style={{
+                                width: '24px',
+                                height: '24px',
+                                borderRadius: '6px',
+                                backgroundColor: '#DCFCE7',
+                                color: '#16A34A',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                textDecoration: 'none',
+                              }}
                               title="WhatsApp"
                             >
-                              <MessageCircle size={10} />
+                              <MessageCircle size={11} />
                             </a>
                           )}
                         </div>
@@ -747,193 +703,184 @@ export default function SalesDashboardPage() {
           <Link
             to="/sales/reminders"
             style={{
-              display: 'block',
-              textAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '4px',
               fontSize: '0.78rem',
               fontWeight: '700',
-              color: '#475569',
+              color: '#2A9CB8',
               textDecoration: 'none',
               paddingTop: '0.75rem',
-              borderTop: '1px solid #f1f5f9',
+              borderTop: '1px solid #F1F3F6',
               marginTop: '0.5rem',
             }}
           >
-            View All Follow-Ups &gt;
+            <span>View All Follow-Ups</span>
+            <ArrowRight size={13} />
           </Link>
         </div>
       </div>
 
-      {/* Bottom Row: Latest Incoming Leads & Recent Activity (REAL DB DATA) */}
+      {/* Bottom Grid: Unclaimed Open Pool Leads (Left) + Live Activity Stream (Right) */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1.6fr 1fr',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
           gap: '1.25rem',
           alignItems: 'stretch',
         }}
       >
-        {/* Left Column: Latest Incoming Leads (Top 5 from DB) */}
-        <div
-          style={{
-            backgroundColor: '#fff',
-            borderRadius: '14px',
-            padding: '1.35rem',
-            border: '1px solid #edf2f7',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-              Latest Incoming Leads (Top 5)
-            </h3>
+        {/* Unclaimed Open Pool Table */}
+        <div className="sales-card" style={{ padding: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div>
+              <h3 style={{ fontSize: '0.98rem', fontWeight: '700', color: '#111827', margin: 0 }}>
+                Unclaimed Pool Leads
+              </h3>
+              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.76rem', color: '#6B7280' }}>
+                First-come first-serve incoming opportunities
+              </p>
+            </div>
             <Link
               to="/sales/leads?tab=pool"
-              style={{ fontSize: '0.8rem', fontWeight: '700', color: '#0284c7', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+              style={{ fontSize: '0.78rem', fontWeight: '700', color: '#2A9CB8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
             >
-              View All in Open Pool →
+              <span>View Open Pool</span>
+              <ArrowRight size={13} />
             </Link>
           </div>
 
-          {/* Table */}
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-            <thead>
-              <tr style={{ color: '#64748b', textAlign: 'left', borderBottom: '1px solid #f1f5f9' }}>
-                <th style={{ paddingBottom: '0.6rem', fontWeight: '600' }}>Client Name</th>
-                <th style={{ paddingBottom: '0.6rem', fontWeight: '600' }}>Company</th>
-                <th style={{ paddingBottom: '0.6rem', fontWeight: '600' }}>Received</th>
-                <th style={{ paddingBottom: '0.6rem', fontWeight: '600' }}>Source</th>
-                <th style={{ paddingBottom: '0.6rem', fontWeight: '600' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {poolLeads.length === 0 ? (
+          {/* High-density table */}
+          <div className="surfsync-table-container">
+            <table className="surfsync-table">
+              <thead>
                 <tr>
-                  <td colSpan={5} style={{ padding: '2.5rem 0', textAlign: 'center', color: '#94a3b8' }}>
-                    No unclaimed leads in pool right now.
-                  </td>
+                  <th>Client</th>
+                  <th>Company</th>
+                  <th>Received</th>
+                  <th>Source</th>
+                  <th style={{ textAlign: 'right' }}>Action</th>
                 </tr>
-              ) : (
-                poolLeads.map((lead, idx) => {
-                  const initials = lead.name ? lead.name.charAt(0) : 'L';
-                  const bgColors = ['#eff6ff', '#fef2f2', '#ecfdf5', '#fffbeb', '#f5f3ff'];
-                  const textColors = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed'];
+              </thead>
+              <tbody>
+                {poolLeads.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ padding: '2rem 1rem', textAlign: 'center', color: '#9CA3AF' }}>
+                      No unclaimed leads in pool right now.
+                    </td>
+                  </tr>
+                ) : (
+                  poolLeads.map((lead) => {
+                    const initials = lead.name ? lead.name.slice(0, 2).toUpperCase() : 'L';
 
-                  return (
-                    <tr key={lead.id} style={{ borderBottom: '1px solid #f8fafc' }}>
-                      <td style={{ padding: '0.75rem 0' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div
+                    return (
+                      <tr key={lead.id}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div
+                              style={{
+                                width: '26px',
+                                height: '26px',
+                                borderRadius: '6px',
+                                backgroundColor: '#FFF3E6',
+                                color: '#F68713',
+                                fontWeight: '700',
+                                fontSize: '0.72rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {initials}
+                            </div>
+                            <span style={{ fontWeight: '700', color: '#111827' }}>{lead.name}</span>
+                          </div>
+                        </td>
+                        <td style={{ color: '#4B5563' }}>{lead.lead_company || '—'}</td>
+                        <td className="num" style={{ color: '#6B7280', fontSize: '0.78rem' }}>
+                          {timeAgo(lead.created_at || lead.lead_date)}
+                        </td>
+                        <td>
+                          <span
+                            className="badge-status"
                             style={{
-                              width: '26px',
-                              height: '26px',
-                              borderRadius: '50%',
-                              backgroundColor: bgColors[idx % bgColors.length],
-                              color: textColors[idx % textColors.length],
-                              fontWeight: '800',
-                              fontSize: '0.72rem',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
+                              backgroundColor: '#E8F6FA',
+                              color: '#1D667C',
+                              fontSize: '0.68rem',
                             }}
                           >
-                            {initials}
-                          </div>
-                          <strong style={{ color: '#0f172a' }}>{lead.name}</strong>
-                        </div>
-                      </td>
-                      <td style={{ color: '#475569' }}>{lead.lead_company || '—'}</td>
-                      <td style={{ color: '#64748b' }}>
-                        {timeAgo(lead.created_at || lead.lead_date)}
-                      </td>
-                      <td>
-                        <span
-                          style={{
-                            fontSize: '0.7rem',
-                            fontWeight: '600',
-                            backgroundColor: '#eff6ff',
-                            color: '#2563eb',
-                            padding: '3px 8px',
-                            borderRadius: '999px',
-                          }}
-                        >
-                          {lead.source_name || 'Website'}
-                        </span>
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() => handleClaim(lead.id)}
-                          disabled={claimingId === lead.id}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            backgroundColor: '#072423',
-                            color: '#fff',
-                            border: 'none',
-                            padding: '5px 12px',
-                            borderRadius: '6px',
-                            fontSize: '0.76rem',
-                            fontWeight: '700',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <Zap size={11} color="#facc15" fill="#facc15" />
-                          {claimingId === lead.id ? 'Claiming…' : 'Claim & Call'}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                            {lead.source_name || 'Website'}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleClaim(lead.id)}
+                            disabled={claimingId === lead.id}
+                            className="btn-primary-action"
+                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.74rem' }}
+                          >
+                            <Zap size={11} />
+                            {claimingId === lead.id ? 'Claiming…' : 'Claim'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div
-          style={{
-            backgroundColor: '#fff',
-            borderRadius: '14px',
-            padding: '1.35rem',
-            border: '1px solid #edf2f7',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-              Recent Activity
-            </h3>
-            <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: '700' }}>
-              Live Stream
+
+        {/* Live Stream Activity */}
+        <div className="sales-card" style={{ padding: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div>
+              <h3 style={{ fontSize: '0.98rem', fontWeight: '700', color: '#111827', margin: 0 }}>
+                Recent Operational Activity
+              </h3>
+              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.76rem', color: '#6B7280' }}>
+                Audit log of lead transitions & updates
+              </p>
+            </div>
+            <span className="badge-status" style={{ backgroundColor: '#DCFCE7', color: '#166534', fontSize: '0.68rem' }}>
+              <span className="badge-status-dot" style={{ backgroundColor: '#16A34A' }} /> Live
             </span>
           </div>
 
-          {/* Timeline Items from Real DB */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', position: 'relative' }}>
+          {/* Timeline Items */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {activities.length === 0 ? (
-              <div style={{ padding: '2.5rem 0', textAlign: 'center', color: '#94a3b8' }}>
-                <p style={{ margin: 0, fontWeight: '600', fontSize: '0.85rem' }}>No recent activity</p>
-                <small style={{ fontSize: '0.75rem' }}>Status changes and lead claims will appear here live.</small>
+              <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#9CA3AF' }}>
+                <Activity size={24} color="#9CA3AF" style={{ margin: '0 auto 0.4rem auto' }} />
+                <p style={{ margin: 0, fontWeight: '600', fontSize: '0.82rem' }}>No recent activity</p>
+                <small style={{ fontSize: '0.74rem' }}>Status changes and claims will log here.</small>
               </div>
             ) : (
               activities.map((act, i) => {
-                let icon = <UserCheck size={13} />;
-                let bg = '#ecfdf5';
-                let color = '#10b981';
+                let icon = <UserCheck size={12} />;
+                let bg = '#E8F6FA';
+                let color = '#2A9CB8';
 
                 if (act.status === 'won') {
-                  icon = <Trophy size={13} />;
-                  bg = '#fef3c7';
-                  color = '#d97706';
+                  icon = <Trophy size={12} />;
+                  bg = '#DCFCE7';
+                  color = '#16A34A';
                 } else if (act.status === 'interested') {
-                  icon = <Star size={13} />;
-                  bg = '#fffbeb';
-                  color = '#f59e0b';
+                  icon = <Star size={12} />;
+                  bg = '#FEF3C7';
+                  color = '#CA8A04';
                 } else if (act.status === 'quotation_requested' || act.status === 'quotation_sent') {
-                  icon = <FileText size={13} />;
-                  bg = '#f5f3ff';
-                  color = '#8b5cf6';
+                  icon = <FileText size={12} />;
+                  bg = '#FFF3E6';
+                  color = '#F68713';
                 } else if (act.status === 'lost') {
-                  icon = <XCircle size={13} />;
-                  bg = '#fef2f2';
-                  color = '#ef4444';
+                  icon = <XCircle size={12} />;
+                  bg = '#FEE2E2';
+                  color = '#DC2626';
                 }
 
                 return (
@@ -942,27 +889,27 @@ export default function SalesDashboardPage() {
                       style={{
                         width: '26px',
                         height: '26px',
-                        borderRadius: '50%',
+                        borderRadius: '6px',
                         backgroundColor: bg,
                         color: color,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         flexShrink: 0,
-                        marginTop: '2px',
+                        marginTop: '1px',
                       }}
                     >
                       {icon}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#0f172a' }}>
+                      <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#111827', lineHeight: 1.25 }}>
                         {String(act.title || '').replace(/[\u{1F300}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim()}
                       </div>
-                      <div style={{ fontSize: '0.74rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ fontSize: '0.72rem', color: '#6B7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
                         {act.subtitle}
                       </div>
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', flexShrink: 0 }}>
+                    <div className="num" style={{ fontSize: '0.7rem', color: '#9CA3AF', flexShrink: 0 }}>
                       {timeAgo(act.time)}
                     </div>
                   </div>

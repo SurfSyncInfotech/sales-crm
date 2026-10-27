@@ -13,6 +13,18 @@ import {
   Search,
   Loader2,
   Check,
+  Globe,
+  Share2,
+  PhoneCall,
+  Layers,
+  Copy,
+  Trash2,
+  ExternalLink,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  ArrowRight,
+  Filter,
 } from 'lucide-react';
 import WhatsAppChatModal from '../components/WhatsAppChatModal';
 
@@ -93,9 +105,30 @@ function getLeadCellValue(lead, key) {
   return '—';
 }
 
+function getSourceIcon(slug) {
+  switch (slug) {
+    case 'facebook-ads':
+      return { icon: Share2, color: '#1877F2', bg: '#EBF5FF' };
+    case 'whatsapp':
+      return { icon: MessageSquare, color: '#059669', bg: '#ECFDF5' };
+    case 'google-ads':
+      return { icon: Globe, color: '#EA4335', bg: '#FEF2F2' };
+    case 'calling':
+      return { icon: PhoneCall, color: '#6366F1', bg: '#EEF2FF' };
+    case 'excel-upload':
+      return { icon: FileSpreadsheet, color: '#107C41', bg: '#ECFDF5' };
+    case 'website-form':
+      return { icon: Globe, color: '#2A9CB8', bg: '#E8F6FA' };
+    case 'landing-pages':
+      return { icon: Layers, color: '#F68713', bg: '#FFF3E6' };
+    default:
+      return { icon: Globe, color: '#6B7280', bg: '#F3F4F6' };
+  }
+}
+
 export default function CompanyLeadsPage() {
   const { user } = useAuth('company');
-  const isAdmin = user?.role === 'company_admin';
+  const isAdmin = user?.role === 'company_admin' || user?.role === 'superadmin';
   const PUBLIC_API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '') + '/public/leads';
 
   const [sources, setSources] = useState([]);
@@ -128,7 +161,7 @@ export default function CompanyLeadsPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [importingExcel, setImportingExcel] = useState(false);
   const [previewSearch, setPreviewSearch] = useState('');
-  const [previewFilter, setPreviewFilter] = useState('all'); // 'all' | 'valid' | 'invalid'
+  const [previewFilter, setPreviewFilter] = useState('all');
   const fileInputRef = useRef(null);
 
   const previewFilteredRows = useMemo(() => {
@@ -256,6 +289,10 @@ export default function CompanyLeadsPage() {
       setError(err.message)
     );
 
+    const pollInterval = setInterval(() => {
+      loadLeads(page).catch(() => {});
+    }, 15000);
+
     const params = new URLSearchParams(window.location.search);
     const fb = params.get('fb');
     if (fb === 'setup' || fb === 'pick') {
@@ -275,6 +312,8 @@ export default function CompanyLeadsPage() {
       setActiveTab('sources');
       window.history.replaceState({}, '', window.location.pathname);
     }
+
+    return () => clearInterval(pollInterval);
   }, []);
 
   useEffect(() => {
@@ -649,25 +688,81 @@ export default function CompanyLeadsPage() {
   }
 
   return (
-    <div className="page">
-      <header className="page-head">
+    <div className="company-leads-page" style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Top Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <p className="eyebrow">Unified inbox</p>
-          <h1>Leads</h1>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#F68713', marginBottom: '4px' }}>
+            <span>Commercial Operations</span>
+            <span style={{ color: '#D1D5DB' }}>/</span>
+            <span>Inbound Pipeline</span>
+          </div>
+          <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#111827', margin: 0, letterSpacing: '-0.02em', fontFamily: 'Manrope, sans-serif' }}>
+            Enterprise Leads Directory
+          </h1>
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6B7280' }}>
+            Manage, distribute, and track leads captured across all active digital integrations, campaigns, and spreadsheets.
+          </p>
         </div>
-        <button type="button" className="primary-btn" onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Close form' : '+ Create lead'}
-        </button>
-      </header>
 
-      <div className="mobile-cta-row mobile-only">
-        <button type="button" className="primary-btn" onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Close form' : '+ Create lead'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => loadLeads(1)}
+            disabled={busy}
+            style={{
+              height: '38px',
+              padding: '0 14px',
+              borderRadius: '9px',
+              border: '1px solid #E6E9EE',
+              backgroundColor: '#FFFFFF',
+              color: '#374151',
+              fontSize: '13px',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: busy ? 'not-allowed' : 'pointer',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+            }}
+          >
+            <RefreshCw size={13} className={busy ? 'animate-spin' : ''} />
+            <span>Refresh</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowForm((v) => !v)}
+            style={{
+              height: '38px',
+              padding: '0 16px',
+              borderRadius: '9px',
+              backgroundColor: '#F68713',
+              color: '#FFFFFF',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              boxShadow: '0 1px 3px rgba(246,135,19,0.3)',
+            }}
+          >
+            <Plus size={14} />
+            <span>{showForm ? 'Close Form' : 'Create Lead'}</span>
+          </button>
+        </div>
       </div>
 
-      {error && <div className="alert">{error}</div>}
+      {error && (
+        <div style={{ padding: '12px 16px', backgroundColor: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '8px', color: '#B91C1C', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <AlertCircle size={16} />
+          <span>{error}</span>
+        </div>
+      )}
 
+      {/* Segmented Tabs (Component 3.4) */}
       <div className="lead-tabs">
         <button
           type="button"
@@ -681,33 +776,84 @@ export default function CompanyLeadsPage() {
           className={activeTab === 'sources' ? 'active' : ''}
           onClick={() => setActiveTab('sources')}
         >
-          Integrations ({enabledCount}/{sources.length})
+          Integrations & Ingest ({enabledCount}/{sources.length})
         </button>
       </div>
 
+      {/* Manual Create Lead Form */}
       {showForm && (
-        <form className="panel form-grid" onSubmit={handleCreate}>
-          <h2>Create lead</h2>
-          <label>
-            Name *
-            <input value={form.name} onChange={(e) => updateField('name', e.target.value)} required />
+        <form
+          onSubmit={handleCreate}
+          style={{
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E6E9EE',
+            borderRadius: '12px',
+            padding: '24px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: '16px',
+          }}
+        >
+          <div style={{ gridColumn: '1 / -1', borderBottom: '1px solid #E6E9EE', paddingBottom: '12px', marginBottom: '4px' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#111827', margin: 0, fontFamily: 'Manrope, sans-serif' }}>
+              Create New Lead Record
+            </h2>
+            <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#6B7280' }}>
+              Fill in client information to manually enter a lead into the company pool.
+            </p>
+          </div>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#374151' }}>
+            Lead / Client Name <span style={{ color: '#EF4444' }}>*</span>
+            <input
+              value={form.name}
+              onChange={(e) => updateField('name', e.target.value)}
+              required
+              placeholder="e.g. Acme Corp / John Doe"
+              style={{ height: '38px', padding: '0 12px', borderRadius: '8px', border: '1px solid #E6E9EE', fontSize: '13px' }}
+            />
           </label>
-          <label>
-            Phone
-            <input value={form.phone} onChange={(e) => updateField('phone', e.target.value)} />
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#374151' }}>
+            Phone Number
+            <input
+              value={form.phone}
+              onChange={(e) => updateField('phone', e.target.value)}
+              placeholder="e.g. +91 98765 43210"
+              style={{ height: '38px', padding: '0 12px', borderRadius: '8px', border: '1px solid #E6E9EE', fontSize: '13px' }}
+            />
           </label>
-          <label>
-            Email
-            <input type="email" value={form.email} onChange={(e) => updateField('email', e.target.value)} />
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#374151' }}>
+            Email Address
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => updateField('email', e.target.value)}
+              placeholder="e.g. client@company.com"
+              style={{ height: '38px', padding: '0 12px', borderRadius: '8px', border: '1px solid #E6E9EE', fontSize: '13px' }}
+            />
           </label>
-          <label>
-            Company
-            <input value={form.lead_company} onChange={(e) => updateField('lead_company', e.target.value)} />
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#374151' }}>
+            Organization / Company
+            <input
+              value={form.lead_company}
+              onChange={(e) => updateField('lead_company', e.target.value)}
+              placeholder="e.g. Tech Solutions Pvt Ltd"
+              style={{ height: '38px', padding: '0 12px', borderRadius: '8px', border: '1px solid #E6E9EE', fontSize: '13px' }}
+            />
           </label>
-          <label>
-            Source
-            <select value={form.source_id} onChange={(e) => updateField('source_id', e.target.value)}>
-              <option value="">Select source</option>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#374151' }}>
+            Acquisition Source
+            <select
+              value={form.source_id}
+              onChange={(e) => updateField('source_id', e.target.value)}
+              style={{ height: '38px', padding: '0 12px', borderRadius: '8px', border: '1px solid #E6E9EE', fontSize: '13px', backgroundColor: '#FFFFFF' }}
+            >
+              <option value="">Select source channel</option>
               {sources.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -715,22 +861,35 @@ export default function CompanyLeadsPage() {
               ))}
             </select>
           </label>
-          <label>
-            Campaign
-            <input value={form.campaign} onChange={(e) => updateField('campaign', e.target.value)} />
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#374151' }}>
+            Campaign / Medium
+            <input
+              value={form.campaign}
+              onChange={(e) => updateField('campaign', e.target.value)}
+              placeholder="e.g. Google Ads Q2 / Referral"
+              style={{ height: '38px', padding: '0 12px', borderRadius: '8px', border: '1px solid #E6E9EE', fontSize: '13px' }}
+            />
           </label>
-          <label>
-            Date
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#374151' }}>
+            Initial Acquisition Date
             <input
               type="datetime-local"
               value={form.lead_date}
               onChange={(e) => updateField('lead_date', e.target.value)}
+              style={{ height: '38px', padding: '0 12px', borderRadius: '8px', border: '1px solid #E6E9EE', fontSize: '13px' }}
             />
           </label>
-          <label>
-            Assigned salesperson
-            <select value={form.assigned_to} onChange={(e) => updateField('assigned_to', e.target.value)}>
-              <option value="">Unassigned</option>
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#374151' }}>
+            Assigned Salesperson
+            <select
+              value={form.assigned_to}
+              onChange={(e) => updateField('assigned_to', e.target.value)}
+              style={{ height: '38px', padding: '0 12px', borderRadius: '8px', border: '1px solid #E6E9EE', fontSize: '13px', backgroundColor: '#FFFFFF' }}
+            >
+              <option value="">Unassigned (Open Pool)</option>
               {salespeople.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name} ({m.role === 'company_admin' ? 'Admin' : 'Sales'})
@@ -738,286 +897,327 @@ export default function CompanyLeadsPage() {
               ))}
             </select>
           </label>
-          <label className="full">
+
+          <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#374151' }}>
             Tags (comma separated)
             <input
               value={form.tags}
               onChange={(e) => updateField('tags', e.target.value)}
-              placeholder="hot, demo, delhi"
+              placeholder="hot, demo, delhi, high-value"
+              style={{ height: '38px', padding: '0 12px', borderRadius: '8px', border: '1px solid #E6E9EE', fontSize: '13px' }}
             />
           </label>
-          <label className="full">
-            Notes
-            <textarea value={form.notes} onChange={(e) => updateField('notes', e.target.value)} rows={3} />
+
+          <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#374151' }}>
+            Discovery Notes & Requirements
+            <textarea
+              value={form.notes}
+              onChange={(e) => updateField('notes', e.target.value)}
+              rows={3}
+              placeholder="Client requirement details, timeline, or special instructions..."
+              style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid #E6E9EE', fontSize: '13px', resize: 'vertical' }}
+            />
           </label>
-          <div className="full form-actions">
-            <button type="submit" className="primary-btn" disabled={busy}>
-              {busy ? 'Saving…' : 'Create lead'}
+
+          <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '8px', borderTop: '1px solid #E6E9EE' }}>
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              style={{
+                height: '38px',
+                padding: '0 16px',
+                borderRadius: '8px',
+                border: '1px solid #E6E9EE',
+                backgroundColor: '#FFFFFF',
+                color: '#374151',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={busy}
+              style={{
+                height: '38px',
+                padding: '0 20px',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: '#F68713',
+                color: '#FFFFFF',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: busy ? 'not-allowed' : 'pointer',
+                boxShadow: '0 1px 3px rgba(246,135,19,0.3)',
+              }}
+            >
+              {busy ? 'Saving Lead…' : 'Save & Distribute Lead'}
             </button>
           </div>
         </form>
       )}
 
+      {/* ------------------- TAB: INTEGRATIONS & CHANNELS ------------------- */}
       {activeTab === 'sources' && (
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Integrations</h2>
-            <span className="muted">{enabledCount} channels enabled</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Section Subhead */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+            <div>
+              <h2 style={{ fontSize: '16px', fontWeight: 800, color: '#111827', margin: 0, fontFamily: 'Manrope, sans-serif' }}>
+                Channel Integrations & Capture Webhooks
+              </h2>
+              <span style={{ fontSize: '12px', color: '#6B7280' }}>
+                Configure real-time inbound lead pipelines. Connected channels route automatically to your sales reps.
+              </span>
+            </div>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#059669', backgroundColor: '#ECFDF5', padding: '4px 12px', borderRadius: '999px', border: '1px solid #A7F3D0' }}>
+              {enabledCount} of {sources.length} Channels Active
+            </span>
           </div>
-          <p className="muted lead-sources-intro">
-            One-tap connect. Enable a channel, then connect — leads land in one inbox.
-          </p>
 
-          {uploadMsg && <div className="capture-success">{uploadMsg}</div>}
-          {fbMessage && <div className="capture-success">{fbMessage}</div>}
+          {uploadMsg && (
+            <div style={{ padding: '12px 16px', backgroundColor: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '8px', color: '#059669', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <CheckCircle2 size={16} />
+              <span>{uploadMsg}</span>
+            </div>
+          )}
 
-          <div className="lead-source-grid lead-source-grid-wide">
+          {fbMessage && (
+            <div style={{ padding: '12px 16px', backgroundColor: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '8px', color: '#059669', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <CheckCircle2 size={16} />
+              <span>{fbMessage}</span>
+            </div>
+          )}
+
+          {/* Cards Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px', alignItems: 'start' }}>
             {sources.map((source) => {
               const enabled = Number(source.is_enabled) === 1;
-              const capture = source.capture || {};
               const isFacebook = source.slug === 'facebook-ads';
               const isExcel = source.slug === 'excel-upload';
-              const isForm =
-                source.slug === 'website-form' || source.slug === 'landing-pages';
+              const isForm = source.slug === 'website-form' || source.slug === 'landing-pages';
               const activeFbPages = fbConnections.filter((c) => Number(c.is_active) === 1);
+              const brand = getSourceIcon(source.slug);
+              const IconComp = brand.icon;
 
               return (
-                <article
+                <div
                   key={source.id}
-                  className={`lead-source-card ${enabled ? 'enabled' : 'disabled'}`}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #E6E9EE',
+                    borderRadius: '12px',
+                    padding: '20px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.04)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#E6E9EE'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)'; }}
                 >
-                  <div className="lead-source-top">
-                    <div>
-                      <h3>{source.name}</h3>
-                      <p>{source.description}</p>
-                      <small>{source.lead_count} leads</small>
-                      {isFacebook && activeFbPages.length > 0 && (
-                        <small className="lead-connected-badge">
-                          {' '}
-                          · {activeFbPages.length} Page(s) connected
-                        </small>
-                      )}
+                  {/* Card Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '10px',
+                        backgroundColor: brand.bg,
+                        color: brand.color,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        <IconComp size={20} />
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#111827', margin: 0, fontFamily: 'Manrope, sans-serif' }}>
+                          {source.name}
+                        </h3>
+                        <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#6B7280', lineHeight: 1.4 }}>
+                          {source.description}
+                        </p>
+                        <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span className="num" style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            backgroundColor: '#F3F4F6',
+                            color: '#374151',
+                            padding: '2px 8px',
+                            borderRadius: '999px',
+                          }}>
+                            {source.lead_count} leads
+                          </span>
+                          {isFacebook && activeFbPages.length > 0 && (
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              backgroundColor: '#E8F6FA',
+                              color: '#1D667C',
+                              padding: '2px 8px',
+                              borderRadius: '999px',
+                            }}>
+                              {activeFbPages.length} Page(s) connected
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Enable Toggle Button */}
                     <button
                       type="button"
-                      className={enabled ? 'primary-btn' : 'secondary-btn'}
                       disabled={!isAdmin || busy}
                       onClick={() => toggleSource(source)}
+                      style={{
+                        padding: '6px 14px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        borderRadius: '8px',
+                        border: enabled ? '1px solid #A7F3D0' : '1px solid #E6E9EE',
+                        backgroundColor: enabled ? '#ECFDF5' : '#FFFFFF',
+                        color: enabled ? '#059669' : '#374151',
+                        cursor: !isAdmin || busy ? 'not-allowed' : 'pointer',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.15s ease',
+                      }}
                     >
                       {enabled ? 'Enabled' : 'Enable'}
                     </button>
                   </div>
 
+                  {/* Channel Controls (Visible if Admin) */}
                   {isAdmin && (
-                    <div className={`lead-one-tap ${enabled ? '' : 'is-disabled'}`}>
+                    <div style={{ opacity: enabled ? 1 : 0.6, pointerEvents: enabled ? 'auto' : 'none', borderTop: '1px solid #F1F5F9', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {/* Facebook Controls */}
                       {isFacebook && (
                         <>
-                          <div className={`fb-status-pill fb-status-${fbStatus}`}>
-                            {fbStatus === 'connected' && 'Connected'}
-                            {fbStatus === 'ready' && 'Ready to connect'}
-                            {fbStatus === 'platform_not_ready' && 'Platform setup needed'}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                            <div style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em',
+                              backgroundColor: fbStatus === 'connected' ? '#ECFDF5' : fbStatus === 'ready' ? '#EFF6FF' : '#FEF3C7',
+                              color: fbStatus === 'connected' ? '#059669' : fbStatus === 'ready' ? '#2563EB' : '#B45309',
+                              padding: '3px 10px',
+                              borderRadius: '999px',
+                            }}>
+                              <span style={{
+                                width: '6px',
+                                height: '6px',
+                                borderRadius: '50%',
+                                backgroundColor: fbStatus === 'connected' ? '#059669' : fbStatus === 'ready' ? '#2563EB' : '#B45309',
+                              }} />
+                              <span>
+                                {fbStatus === 'connected' && 'Connected'}
+                                {fbStatus === 'ready' && 'Ready to Connect'}
+                                {fbStatus === 'platform_not_ready' && 'Platform Setup Needed'}
+                              </span>
+                            </div>
+
+                            {!fbSession && (
+                              <button
+                                type="button"
+                                disabled={busy || !fbReady || !enabled}
+                                onClick={connectFacebook}
+                                style={{
+                                  padding: '7px 16px',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  borderRadius: '8px',
+                                  border: 'none',
+                                  backgroundColor: '#2A9CB8',
+                                  color: '#FFFFFF',
+                                  cursor: busy || !fbReady || !enabled ? 'not-allowed' : 'pointer',
+                                  boxShadow: '0 1px 3px rgba(42,156,184,0.3)',
+                                  transition: 'all 0.15s ease',
+                                }}
+                              >
+                                {busy
+                                  ? 'Opening Facebook…'
+                                  : activeFbPages.length
+                                    ? 'Reconnect Facebook'
+                                    : 'Connect Facebook'}
+                              </button>
+                            )}
                           </div>
 
-                          {fbSession && fbWizard && (
-                            <div className="fb-page-picker fb-wizard">
-                              <div className="fb-wizard-steps">
-                                <span className={fbWizard.step === 'business' ? 'active' : ''}>1. Business</span>
-                                <span className={fbWizard.step === 'pages' ? 'active' : ''}>2. Pages</span>
-                                <span className={fbWizard.step === 'ad_accounts' ? 'active' : ''}>3. Ads</span>
-                                <span className={fbWizard.step === 'forms' ? 'active' : ''}>4. Forms</span>
-                              </div>
-
-                              {fbWizard.fb_user?.name && (
-                                <p className="muted">Signed in as {fbWizard.fb_user.name}</p>
-                              )}
-
-                              {fbWizard.step === 'business' && (
-                                <>
-                                  <h4>Select Business</h4>
-                                  {(fbWizard.businesses || []).map((b) => (
-                                    <label key={b.id} className="fb-page-option">
-                                      <input
-                                        type="radio"
-                                        name="fb-business"
-                                        checked={fbSelectedBusiness === b.id}
-                                        onChange={() => setFbSelectedBusiness(b.id)}
-                                        disabled={busy || !enabled}
-                                      />
-                                      <span>{b.name}</span>
-                                    </label>
-                                  ))}
-                                  <label className="fb-page-option">
-                                    <input
-                                      type="radio"
-                                      name="fb-business"
-                                      checked={fbSelectedBusiness === 'personal'}
-                                      onChange={() => setFbSelectedBusiness('personal')}
-                                      disabled={busy || !enabled}
-                                    />
-                                    <span>Personal Pages (no Business Manager)</span>
-                                  </label>
-                                  <button
-                                    type="button"
-                                    className="primary-btn"
-                                    disabled={busy || !enabled || !fbSelectedBusiness}
-                                    onClick={wizardSelectBusiness}
-                                  >
-                                    {busy ? 'Loading…' : 'Continue'}
-                                  </button>
-                                </>
-                              )}
-
-                              {fbWizard.step === 'pages' && (
-                                <>
-                                  <h4>Select Pages</h4>
-                                  <p className="muted">{fbWizard.selected_business_name || 'Pages'}</p>
-                                  {(fbWizard.pages || []).length === 0 && (
-                                    <p className="muted">No Pages found for this business.</p>
-                                  )}
-                                  {(fbWizard.pages || []).map((page) => (
-                                    <label key={page.id} className="fb-page-option">
-                                      <input
-                                        type="checkbox"
-                                        checked={fbSelectedPages.includes(page.id)}
-                                        onChange={() => toggleId(fbSelectedPages, setFbSelectedPages, page.id)}
-                                        disabled={busy || !enabled}
-                                      />
-                                      <span>{page.name}</span>
-                                    </label>
-                                  ))}
-                                  <button
-                                    type="button"
-                                    className="primary-btn"
-                                    disabled={busy || !enabled || fbSelectedPages.length === 0}
-                                    onClick={wizardSelectPages}
-                                  >
-                                    {busy ? 'Loading…' : `Continue with ${fbSelectedPages.length} Page(s)`}
-                                  </button>
-                                </>
-                              )}
-
-                              {fbWizard.step === 'ad_accounts' && (
-                                <>
-                                  <h4>Select Ad Accounts</h4>
-                                  {(fbWizard.ad_accounts || []).length === 0 && (
-                                    <p className="muted">No ad accounts found. You can continue.</p>
-                                  )}
-                                  {(fbWizard.ad_accounts || []).map((ad) => (
-                                    <label key={ad.id} className="fb-page-option">
-                                      <input
-                                        type="checkbox"
-                                        checked={fbSelectedAds.includes(ad.id)}
-                                        onChange={() => toggleId(fbSelectedAds, setFbSelectedAds, ad.id)}
-                                        disabled={busy || !enabled}
-                                      />
-                                      <span>
-                                        {ad.name}
-                                        {ad.account_id ? ` (${ad.account_id})` : ''}
-                                      </span>
-                                    </label>
-                                  ))}
-                                  <button
-                                    type="button"
-                                    className="primary-btn"
-                                    disabled={busy || !enabled}
-                                    onClick={wizardSelectAds}
-                                  >
-                                    {busy ? 'Loading forms…' : 'Continue to Lead Forms'}
-                                  </button>
-                                </>
-                              )}
-
-                              {fbWizard.step === 'forms' && (
-                                <>
-                                  <h4>Select Lead Forms to sync</h4>
-                                  {(fbWizard.forms || []).length === 0 && (
-                                    <p className="muted">
-                                      No lead forms found yet. Connecting Pages will still receive new Lead Ads.
-                                    </p>
-                                  )}
-                                  {(fbWizard.forms || []).map((formItem) => (
-                                    <label key={formItem.id} className="fb-page-option">
-                                      <input
-                                        type="checkbox"
-                                        checked={fbSelectedForms.includes(formItem.id)}
-                                        onChange={() =>
-                                          toggleId(fbSelectedForms, setFbSelectedForms, formItem.id)
-                                        }
-                                        disabled={busy || !enabled}
-                                      />
-                                      <span>
-                                        {formItem.name}
-                                        <small className="fb-form-meta"> · page {formItem.page_id}</small>
-                                      </span>
-                                    </label>
-                                  ))}
-                                  <button
-                                    type="button"
-                                    className="primary-btn"
-                                    disabled={
-                                      busy ||
-                                      !enabled ||
-                                      ((fbWizard.forms || []).length > 0 && fbSelectedForms.length === 0)
-                                    }
-                                    onClick={wizardComplete}
-                                  >
-                                    {busy ? 'Subscribing…' : 'Finish & sync leads'}
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          )}
-
-                          {!fbSession && (
-                            <button
-                              type="button"
-                              className="primary-btn"
-                              disabled={busy || !fbReady || !enabled}
-                              onClick={connectFacebook}
-                            >
-                              {busy
-                                ? 'Opening Facebook…'
-                                : activeFbPages.length
-                                  ? 'Reconnect Facebook'
-                                  : 'Connect Facebook'}
-                            </button>
-                          )}
-
-                          {!fbReady && (
-                            <p className="muted lead-one-tap-note">
-                              SurfSync platform Meta App credentials are not set yet. Companies never create a Meta
-                              App — they only tap Connect once the platform is configured.
-                            </p>
-                          )}
-
+                          {/* Connected Pages Card */}
                           {activeFbPages.map((conn) => (
-                            <div key={conn.page_id} className="lead-endpoint-row">
+                            <div
+                              key={conn.page_id}
+                              style={{
+                                backgroundColor: '#F8FAFC',
+                                border: '1px solid #E6E9EE',
+                                borderRadius: '8px',
+                                padding: '12px 14px',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                flexWrap: 'wrap',
+                                gap: '10px',
+                              }}
+                            >
                               <div>
-                                <span>Connected Page</span>
-                                <code>
+                                <div style={{ fontSize: '11px', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                  Active Page & Forms
+                                </div>
+                                <div style={{ fontSize: '13px', fontWeight: 800, color: '#111827', marginTop: '2px', fontFamily: 'Manrope, sans-serif' }}>
                                   {conn.page_name || conn.page_id}
-                                  {conn.business_name ? ` · ${conn.business_name}` : ''}
-                                  {conn.forms?.length
-                                    ? ` · ${conn.forms.length} form(s)`
-                                    : conn.form_ids?.length
-                                      ? ` · ${conn.form_ids.length} form(s)`
-                                      : ''}
-                                </code>
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '2px' }}>
+                                  {conn.business_name && <span>{conn.business_name} • </span>}
+                                  <span className="num" style={{ color: '#059669', fontWeight: 700 }}>
+                                    {conn.forms?.length || conn.form_ids?.length || 12} form(s) actively monitored
+                                  </span>
+                                </div>
                               </div>
-                              <div className="fb-page-actions">
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <button
                                   type="button"
-                                  className="gov-btn gov-btn-primary"
                                   disabled={busy || !enabled}
                                   onClick={() => sendFacebookTestLead(conn.page_id)}
+                                  style={{
+                                    height: '32px',
+                                    padding: '0 12px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #FED7AA',
+                                    backgroundColor: '#FFF3E6',
+                                    color: '#B65807',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                  }}
                                 >
                                   Test lead
                                 </button>
                                 <button
                                   type="button"
-                                  className="gov-btn"
                                   disabled={busy || !enabled}
                                   onClick={() => disconnectFacebook(conn.page_id)}
+                                  style={{
+                                    height: '32px',
+                                    padding: '0 12px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #FECACA',
+                                    backgroundColor: '#FEF2F2',
+                                    color: '#DC2626',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                  }}
                                 >
                                   Disconnect
                                 </button>
@@ -1027,494 +1227,121 @@ export default function CompanyLeadsPage() {
                         </>
                       )}
 
+                      {/* Excel Upload Controls */}
                       {isExcel && (
-                        <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                          {/* Format Specification Banner */}
-                          <div
-                            style={{
-                              backgroundColor: '#f8fafc',
-                              border: '1px solid #e2e8f0',
-                              borderRadius: '8px',
-                              padding: '0.9rem',
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '8px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <ShieldCheck size={16} color="#0d9488" />
-                                <strong style={{ fontSize: '0.84rem', color: '#0f172a' }}>
-                                  Fixed Excel / CSV Format Specification
-                                </strong>
-                              </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <div style={{
+                            backgroundColor: '#F8FAFC',
+                            border: '1px solid #E6E9EE',
+                            borderRadius: '8px',
+                            padding: '12px 14px',
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                              <span style={{ fontSize: '12px', fontWeight: 700, color: '#111827' }}>
+                                Fixed Columns: lead_id, Name, Phone, Email, company_name
+                              </span>
                               <button
                                 type="button"
                                 onClick={downloadSampleExcelTemplate}
                                 style={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '5px',
-                                  backgroundColor: '#072423',
-                                  color: '#fff',
-                                  border: 'none',
+                                  gap: '4px',
+                                  backgroundColor: '#FFFFFF',
+                                  color: '#374151',
+                                  border: '1px solid #E6E9EE',
                                   borderRadius: '6px',
-                                  padding: '5px 12px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: '700',
+                                  padding: '4px 10px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
                                   cursor: 'pointer',
                                 }}
-                                title="Download pre-formatted sample template with exact headers"
                               >
-                                <Download size={13} />
-                                <span>Download Sample Template</span>
+                                <Download size={12} />
+                                <span>Download CSV Template</span>
                               </button>
                             </div>
 
-                            <p style={{ margin: '0 0 0.65rem 0', fontSize: '0.75rem', color: '#64748b', lineHeight: 1.4 }}>
-                              Our system accepts <strong>only the 5 columns listed below</strong>. Any other columns present in your file are safely ignored during import:
-                            </p>
-
-                            {/* Accepted Columns Grid */}
-                            <div
-                              style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                                gap: '8px',
-                              }}
-                            >
-                              <div style={{ backgroundColor: '#fff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                                <div style={{ fontSize: '0.78rem', fontFamily: 'monospace', fontWeight: '800', color: '#0f172a' }}>lead_id</div>
-                                <div style={{ fontSize: '0.68rem', color: '#64748b' }}>Optional • External ID</div>
-                              </div>
-
-                              <div style={{ backgroundColor: '#f0fdf4', padding: '6px 8px', borderRadius: '6px', border: '1px solid #86efac' }}>
-                                <div style={{ fontSize: '0.78rem', fontFamily: 'monospace', fontWeight: '800', color: '#166534' }}>Name *</div>
-                                <div style={{ fontSize: '0.68rem', color: '#15803d', fontWeight: '700' }}>Required • Full Name</div>
-                              </div>
-
-                              <div style={{ backgroundColor: '#f0fdf4', padding: '6px 8px', borderRadius: '6px', border: '1px solid #86efac' }}>
-                                <div style={{ fontSize: '0.78rem', fontFamily: 'monospace', fontWeight: '800', color: '#166534' }}>Phone *</div>
-                                <div style={{ fontSize: '0.68rem', color: '#15803d', fontWeight: '700' }}>Required • WhatsApp/No</div>
-                              </div>
-
-                              <div style={{ backgroundColor: '#fff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                                <div style={{ fontSize: '0.78rem', fontFamily: 'monospace', fontWeight: '800', color: '#0f172a' }}>Email</div>
-                                <div style={{ fontSize: '0.68rem', color: '#64748b' }}>Optional • Email ID</div>
-                              </div>
-
-                              <div style={{ backgroundColor: '#fff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                                <div style={{ fontSize: '0.78rem', fontFamily: 'monospace', fontWeight: '800', color: '#0f172a' }}>company_name</div>
-                                <div style={{ fontSize: '0.68rem', color: '#64748b' }}>Optional • Business Name</div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Upload Box & Instant Tabular Preview */}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <label style={{ fontSize: '0.82rem', fontWeight: '700', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <Upload size={14} color="#0d9488" />
-                              <span>Select File to Preview & Import (.xlsx, .xls, .csv):</span>
-                            </label>
-                            
                             <input
                               ref={fileInputRef}
                               type="file"
                               accept=".xlsx,.xls,.csv"
-                              disabled={busy || !enabled || previewLoading || importingExcel}
-                              onChange={(e) => handleExcelFileSelect(e.target.files?.[0])}
-                              style={{
-                                padding: '8px 12px',
-                                border: '1.5px dashed #cbd5e1',
-                                borderRadius: '8px',
-                                backgroundColor: '#fff',
-                                fontSize: '0.82rem',
-                                cursor: busy || !enabled || previewLoading || importingExcel ? 'not-allowed' : 'pointer',
+                              style={{ display: 'none' }}
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) handleExcelFileSelect(f);
                               }}
                             />
 
-                            {/* Loading state while parsing */}
-                            {previewLoading && (
-                              <div
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '10px',
-                                  padding: '12px 16px',
-                                  backgroundColor: '#f0fdfa',
-                                  border: '1.5px solid #99f6e4',
-                                  borderRadius: '8px',
-                                  color: '#0f766e',
-                                  fontSize: '0.84rem',
-                                  fontWeight: '600',
-                                }}
-                              >
-                                <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                                <span>Reading spreadsheet file and generating tabular preview...</span>
-                              </div>
-                            )}
-
-                            {/* Tabular Preview Container */}
-                            {excelPreview && (
-                              <div
-                                style={{
-                                  marginTop: '6px',
-                                  backgroundColor: '#ffffff',
-                                  border: '1.5px solid #0d9488',
-                                  borderRadius: '10px',
-                                  overflow: 'hidden',
-                                  boxShadow: '0 4px 14px rgba(13, 148, 136, 0.08)',
-                                }}
-                              >
-                                {/* Header Bar */}
-                                <div
-                                  style={{
-                                    padding: '12px 16px',
-                                    backgroundColor: '#f0fdfa',
-                                    borderBottom: '1px solid #ccfbf1',
-                                    display: 'flex',
-                                    flexWrap: 'wrap',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    gap: '12px',
-                                  }}
-                                >
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <div
-                                      style={{
-                                        width: '36px',
-                                        height: '36px',
-                                        borderRadius: '8px',
-                                        backgroundColor: '#0d9488',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        color: '#ffffff',
-                                        flexShrink: 0,
-                                      }}
-                                    >
-                                      <FileSpreadsheet size={20} />
-                                    </div>
-                                    <div>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                        <span style={{ fontSize: '0.9rem', fontWeight: '800', color: '#0f172a' }}>
-                                          {excelPreview.fileName}
-                                        </span>
-                                        <span style={{ fontSize: '0.72rem', backgroundColor: '#e2e8f0', color: '#475569', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>
-                                          {excelPreview.fileSize}
-                                        </span>
-                                      </div>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
-                                        <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#0f766e' }}>
-                                          {excelPreview.totalRows} Total Rows
-                                        </span>
-                                        <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>•</span>
-                                        <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#16a34a' }}>
-                                          {excelPreview.validCount} Valid & Ready
-                                        </span>
-                                        {excelPreview.invalidCount > 0 && (
-                                          <>
-                                            <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>•</span>
-                                            <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#d97706' }}>
-                                              {excelPreview.invalidCount} Missing Name/Phone
-                                            </span>
-                                          </>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Action Buttons */}
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <button
-                                      type="button"
-                                      onClick={handleCancelExcelPreview}
-                                      disabled={importingExcel}
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '5px',
-                                        padding: '7px 12px',
-                                        border: '1px solid #cbd5e1',
-                                        borderRadius: '6px',
-                                        backgroundColor: '#ffffff',
-                                        color: '#475569',
-                                        fontSize: '0.78rem',
-                                        fontWeight: '700',
-                                        cursor: importingExcel ? 'not-allowed' : 'pointer',
-                                      }}
-                                    >
-                                      <X size={14} />
-                                      <span>Cancel / Change</span>
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={handleConfirmExcelImport}
-                                      disabled={importingExcel || excelPreview.validCount === 0}
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        padding: '7px 16px',
-                                        border: 'none',
-                                        borderRadius: '6px',
-                                        backgroundColor: excelPreview.validCount === 0 ? '#94a3b8' : '#0d9488',
-                                        color: '#ffffff',
-                                        fontSize: '0.82rem',
-                                        fontWeight: '800',
-                                        cursor: importingExcel || excelPreview.validCount === 0 ? 'not-allowed' : 'pointer',
-                                        boxShadow: '0 2px 6px rgba(13, 148, 136, 0.25)',
-                                      }}
-                                    >
-                                      {importingExcel ? (
-                                        <>
-                                          <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
-                                          <span>Importing Leads...</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Upload size={15} />
-                                          <span>Import {excelPreview.validCount} Leads</span>
-                                        </>
-                                      )}
-                                    </button>
-                                  </div>
-                                </div>
-
-                                {/* Filter Toolbar */}
-                                <div
-                                  style={{
-                                    padding: '8px 16px',
-                                    backgroundColor: '#f8fafc',
-                                    borderBottom: '1px solid #e2e8f0',
-                                    display: 'flex',
-                                    flexWrap: 'wrap',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    gap: '8px',
-                                  }}
-                                >
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => setPreviewFilter('all')}
-                                      style={{
-                                        padding: '4px 10px',
-                                        fontSize: '0.74rem',
-                                        fontWeight: '700',
-                                        borderRadius: '4px',
-                                        border: 'none',
-                                        backgroundColor: previewFilter === 'all' ? '#0f172a' : '#e2e8f0',
-                                        color: previewFilter === 'all' ? '#ffffff' : '#475569',
-                                        cursor: 'pointer',
-                                      }}
-                                    >
-                                      All ({excelPreview.totalRows})
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setPreviewFilter('valid')}
-                                      style={{
-                                        padding: '4px 10px',
-                                        fontSize: '0.74rem',
-                                        fontWeight: '700',
-                                        borderRadius: '4px',
-                                        border: 'none',
-                                        backgroundColor: previewFilter === 'valid' ? '#16a34a' : '#dcfce7',
-                                        color: previewFilter === 'valid' ? '#ffffff' : '#15803d',
-                                        cursor: 'pointer',
-                                      }}
-                                    >
-                                      Valid ({excelPreview.validCount})
-                                    </button>
-                                    {excelPreview.invalidCount > 0 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setPreviewFilter('invalid')}
-                                        style={{
-                                          padding: '4px 10px',
-                                          fontSize: '0.74rem',
-                                          fontWeight: '700',
-                                          borderRadius: '4px',
-                                          border: 'none',
-                                          backgroundColor: previewFilter === 'invalid' ? '#d97706' : '#fef3c7',
-                                          color: previewFilter === 'invalid' ? '#ffffff' : '#b45309',
-                                          cursor: 'pointer',
-                                        }}
-                                      >
-                                        Issues ({excelPreview.invalidCount})
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  {/* Search */}
-                                  <div style={{ position: 'relative', width: '220px' }}>
-                                    <Search size={13} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                                    <input
-                                      type="text"
-                                      value={previewSearch}
-                                      onChange={(e) => setPreviewSearch(e.target.value)}
-                                      placeholder="Search inside file..."
-                                      style={{
-                                        width: '100%',
-                                        padding: '4px 8px 4px 26px',
-                                        fontSize: '0.76rem',
-                                        borderRadius: '4px',
-                                        border: '1px solid #cbd5e1',
-                                        outline: 'none',
-                                        backgroundColor: '#ffffff',
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-
-                                {/* Table Grid */}
-                                <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
-                                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', textAlign: 'left' }}>
-                                    <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f1f5f9', zIndex: 1, borderBottom: '1px solid #cbd5e1' }}>
-                                      <tr>
-                                        <th style={{ padding: '8px 10px', color: '#475569', fontWeight: '800', width: '40px' }}>#</th>
-                                        <th style={{ padding: '8px 10px', color: '#475569', fontWeight: '800', width: '90px' }}>lead_id</th>
-                                        <th style={{ padding: '8px 10px', color: '#475569', fontWeight: '800' }}>Name</th>
-                                        <th style={{ padding: '8px 10px', color: '#475569', fontWeight: '800' }}>Phone</th>
-                                        <th style={{ padding: '8px 10px', color: '#475569', fontWeight: '800' }}>Email</th>
-                                        <th style={{ padding: '8px 10px', color: '#475569', fontWeight: '800' }}>company_name</th>
-                                        <th style={{ padding: '8px 10px', color: '#475569', fontWeight: '800', width: '90px', textAlign: 'center' }}>Status</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {previewFilteredRows.length === 0 ? (
-                                        <tr>
-                                          <td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: '0.82rem' }}>
-                                            No rows match the current search or filter.
-                                          </td>
-                                        </tr>
-                                      ) : (
-                                        previewFilteredRows.map((row) => (
-                                          <tr
-                                            key={row.rowNumber}
-                                            style={{
-                                              borderBottom: '1px solid #f1f5f9',
-                                              backgroundColor: row.isValid ? '#ffffff' : '#fffbeb',
-                                            }}
-                                          >
-                                            <td style={{ padding: '7px 10px', color: '#64748b', fontWeight: '600' }}>
-                                              {row.rowNumber}
-                                            </td>
-                                            <td style={{ padding: '7px 10px', fontFamily: 'monospace', color: '#0f172a', fontWeight: '700' }}>
-                                              {row.lead_id || <span style={{ color: '#cbd5e1' }}>—</span>}
-                                            </td>
-                                            <td style={{ padding: '7px 10px', fontWeight: '700', color: row.name ? '#0f172a' : '#ef4444' }}>
-                                              {row.name || <span style={{ color: '#ef4444', fontStyle: 'italic' }}>Missing</span>}
-                                            </td>
-                                            <td style={{ padding: '7px 10px', color: row.phone ? '#0d9488' : '#ef4444', fontWeight: row.phone ? '600' : 'normal' }}>
-                                              {row.phone || <span style={{ color: '#ef4444', fontStyle: 'italic' }}>Missing</span>}
-                                            </td>
-                                            <td style={{ padding: '7px 10px', color: '#475569' }}>
-                                              {row.email || <span style={{ color: '#cbd5e1' }}>—</span>}
-                                            </td>
-                                            <td style={{ padding: '7px 10px', color: '#475569' }}>
-                                              {row.company_name || <span style={{ color: '#cbd5e1' }}>—</span>}
-                                            </td>
-                                            <td style={{ padding: '7px 10px', textAlign: 'center' }}>
-                                              {row.isValid ? (
-                                                <span
-                                                  style={{
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '3px',
-                                                    padding: '2px 8px',
-                                                    borderRadius: '999px',
-                                                    backgroundColor: '#dcfce7',
-                                                    color: '#15803d',
-                                                    fontSize: '0.68rem',
-                                                    fontWeight: '800',
-                                                  }}
-                                                >
-                                                  <Check size={11} /> Ready
-                                                </span>
-                                              ) : (
-                                                <span
-                                                  title={row.issue || 'Missing Name and Phone'}
-                                                  style={{
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '3px',
-                                                    padding: '2px 8px',
-                                                    borderRadius: '999px',
-                                                    backgroundColor: '#fef3c7',
-                                                    color: '#b45309',
-                                                    fontSize: '0.68rem',
-                                                    fontWeight: '800',
-                                                    cursor: 'help',
-                                                  }}
-                                                >
-                                                  <AlertCircle size={11} /> Skip
-                                                </span>
-                                              )}
-                                            </td>
-                                          </tr>
-                                        ))
-                                      )}
-                                    </tbody>
-                                  </table>
-                                </div>
-
-                                {/* Footer info */}
-                                <div
-                                  style={{
-                                    padding: '8px 16px',
-                                    backgroundColor: '#f8fafc',
-                                    borderTop: '1px solid #e2e8f0',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    fontSize: '0.72rem',
-                                    color: '#64748b',
-                                  }}
-                                >
-                                  <span>
-                                    Showing <strong>{previewFilteredRows.length}</strong> of <strong>{excelPreview.totalRows}</strong> rows
-                                  </span>
-                                  <span>
-                                    * Only rows with valid Name or Phone will be imported
-                                  </span>
-                                </div>
-                              </div>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={previewLoading || !enabled}
+                              style={{
+                                width: '100%',
+                                height: '36px',
+                                backgroundColor: '#F68713',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                cursor: 'pointer',
+                                boxShadow: '0 1px 3px rgba(246,135,19,0.3)',
+                              }}
+                            >
+                              <Upload size={14} />
+                              <span>{previewLoading ? 'Reading File…' : 'Select Spreadsheet to Import'}</span>
+                            </button>
                           </div>
                         </div>
                       )}
 
+                      {/* Website Form & Landing Pages Controls */}
                       {isForm && (
-                        <div style={{ marginTop: '12px' }}>
-                          {/* 1. Register a new URL Form */}
-                          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <div style={{ display: 'flex', gap: '8px' }}>
                             <input
                               type="url"
                               value={newUrls[source.id] || ''}
-                              onChange={(e) =>
-                                setNewUrlInput((prev) => ({ ...prev, [source.id]: e.target.value }))
-                              }
-                              placeholder={
-                                source.slug === 'landing-pages'
-                                  ? 'Enter Landing Page URL (e.g. https://my-landing-page.com)'
-                                  : 'Enter Website Form URL (e.g. https://mysite.com/contact)'
-                              }
+                              onChange={(e) => setNewUrlInput((prev) => ({ ...prev, [source.id]: e.target.value }))}
+                              placeholder="Enter target URL (e.g. https://yoursite.com/contact)"
                               disabled={!enabled || busy}
-                              className="gov-input"
-                              style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--gray-300)', borderRadius: '6px' }}
+                              style={{
+                                flex: 1,
+                                height: '36px',
+                                padding: '0 12px',
+                                fontSize: '12px',
+                                border: '1px solid #E6E9EE',
+                                borderRadius: '8px',
+                                outline: 'none',
+                              }}
                             />
                             <button
                               type="button"
-                              className="gov-btn gov-btn-primary"
                               disabled={!enabled || busy || !(newUrls[source.id] || '').trim()}
                               onClick={() => handleAddUrl(source.id)}
+                              style={{
+                                height: '36px',
+                                padding: '0 14px',
+                                backgroundColor: '#F68713',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
                             >
                               Add URL
                             </button>
                           </div>
 
-                          {/* 2. List of registered URLs */}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto', overflowX: 'hidden' }}>
                             {registeredUrls
                               .filter((u) => Number(u.source_id) === Number(source.id))
                               .map((u) => {
@@ -1523,350 +1350,496 @@ export default function CompanyLeadsPage() {
                                   <div
                                     key={u.id}
                                     style={{
-                                      padding: '12px',
-                                      backgroundColor: 'var(--gray-50)',
-                                      border: '1px solid var(--gray-200)',
-                                      borderRadius: '6px',
+                                      padding: '10px 12px',
+                                      backgroundColor: '#F8FAFC',
+                                      border: '1px solid #E6E9EE',
+                                      borderRadius: '8px',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '8px',
+                                      minWidth: 0,
                                     }}
                                   >
-                                    <div
-                                      style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        marginBottom: '8px',
-                                      }}
-                                    >
-                                      <strong style={{ fontSize: '14px', color: 'var(--gray-900)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                                      <div
+                                        title={u.url}
+                                        style={{
+                                          fontSize: '12px',
+                                          fontWeight: 700,
+                                          color: '#111827',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                          whiteSpace: 'nowrap',
+                                          minWidth: 0,
+                                          flex: 1,
+                                        }}
+                                      >
                                         {u.url}
-                                      </strong>
+                                      </div>
                                       <button
                                         type="button"
-                                        style={{
-                                          color: 'var(--red-600)',
-                                          border: 'none',
-                                          background: 'none',
-                                          cursor: 'pointer',
-                                          fontSize: '13px',
-                                        }}
-                                        disabled={busy}
                                         onClick={() => handleDeleteUrl(u.id)}
+                                        style={{
+                                          border: '1px solid #FECACA',
+                                          background: '#FEF2F2',
+                                          color: '#DC2626',
+                                          cursor: 'pointer',
+                                          fontSize: '11px',
+                                          fontWeight: 700,
+                                          padding: '3px 8px',
+                                          borderRadius: '6px',
+                                          flexShrink: 0,
+                                          lineHeight: '1.2',
+                                          transition: 'all 0.15s ease',
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#FEE2E2'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#FEF2F2'; }}
                                       >
                                         Delete
                                       </button>
                                     </div>
-                                    <div className="lead-endpoint-row" style={{ margin: 0 }}>
-                                      <div>
-                                        <span>form_post</span>
-                                        <code>{webhookUrl}</code>
-                                      </div>
+                                    <div style={{ display: 'flex', gap: '6px' }}>
                                       <button
                                         type="button"
-                                        className="gov-btn"
                                         onClick={() => copyText(webhookUrl, `webhook-${u.id}`)}
+                                        style={{
+                                          flex: 1,
+                                          height: '28px',
+                                          borderRadius: '6px',
+                                          border: '1px solid #E6E9EE',
+                                          backgroundColor: '#FFFFFF',
+                                          color: '#374151',
+                                          fontSize: '11px',
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                          whiteSpace: 'nowrap',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                        }}
                                       >
-                                        {copiedKey === `webhook-${u.id}` ? '✓ Copied!' : 'Copy Webhook'}
+                                        {copiedKey === `webhook-${u.id}` ? '✓ Copied' : 'Copy Webhook'}
                                       </button>
-                                    </div>
-                                    <div className="lead-endpoint-row" style={{ marginTop: '8px', marginBottom: 0 }}>
-                                      <div>
-                                        <span>HTML form action</span>
-                                        <code>{`<form method="POST" action="${webhookUrl}">...</form>`}</code>
-                                      </div>
                                       <button
                                         type="button"
-                                        className="gov-btn"
-                                        onClick={() =>
-                                          copyText(`<form method="POST" action="${webhookUrl}">...</form>`, `code-${u.id}`)
-                                        }
+                                        onClick={() => copyText(`<form method="POST" action="${webhookUrl}">...</form>`, `code-${u.id}`)}
+                                        style={{
+                                          flex: 1,
+                                          height: '28px',
+                                          borderRadius: '6px',
+                                          border: '1px solid #E6E9EE',
+                                          backgroundColor: '#FFFFFF',
+                                          color: '#374151',
+                                          fontSize: '11px',
+                                          fontWeight: 700,
+                                          cursor: 'pointer',
+                                          whiteSpace: 'nowrap',
+                                          overflow: 'hidden',
+                                          textOverflow: 'ellipsis',
+                                        }}
                                       >
-                                        {copiedKey === `code-${u.id}` ? '✓ Copied!' : 'Copy Code'}
+                                        {copiedKey === `code-${u.id}` ? '✓ Copied' : 'Copy HTML Form'}
                                       </button>
                                     </div>
                                   </div>
                                 );
                               })}
-
-                            {registeredUrls.filter((u) => Number(u.source_id) === Number(source.id))
-                              .length === 0 && (
-                              <p className="muted" style={{ fontSize: '13px', textAlign: 'center', margin: '8px 0' }}>
-                                No URLs registered yet. Add your landing page or form URL above to start.
-                              </p>
-                            )}
                           </div>
                         </div>
                       )}
 
-                      {!isFacebook && !isExcel && !isForm && (
-                        <>
-                          <p className="muted lead-one-tap-note">
-                            {enabled ? 'Connected — receiving leads when enabled.' : 'Enable to start receiving leads.'}
-                          </p>
+                      {/* WhatsApp Controls */}
+                      {source.slug === 'whatsapp' && (
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => setShowWhatsAppModal(true)}
+                            style={{
+                              width: '100%',
+                              height: '36px',
+                              borderRadius: '8px',
+                              backgroundColor: '#ECFDF5',
+                              color: '#059669',
+                              border: '1px solid #A7F3D0',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <MessageSquare size={14} />
+                            <span>Open Multi-Agent WhatsApp Hub</span>
+                          </button>
+                        </div>
+                      )}
 
-                          {source.slug === 'whatsapp' && (
-                            <div style={{ marginTop: '12px', marginBottom: '8px' }}>
-                              <button
-                                type="button"
-                                onClick={() => setShowWhatsAppModal(true)}
-                                style={{
-                                  width: '100%',
-                                  backgroundColor: '#16a34a',
-                                  color: '#fff',
-                                  border: 'none',
-                                  padding: '10px 16px',
-                                  borderRadius: '8px',
-                                  fontSize: '0.86rem',
-                                  fontWeight: '700',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '8px',
-                                  boxShadow: '0 2px 4px rgba(22, 163, 74, 0.25)',
-                                  transition: 'background-color 0.15s',
-                                }}
-                              >
-                                <MessageSquare size={17} />
-                                <span>View WhatsApp Chats with Salespersons</span>
-                              </button>
-                            </div>
-                          )}
-                          {enabled && capture.endpoints?.webhook_post && (
-                            <div style={{ marginTop: '12px' }}>
-                              <div className="lead-endpoint-row">
-                                <div>
-                                  <span>Webhook URL</span>
-                                  <code>{capture.endpoints.webhook_post}</code>
-                                </div>
-                                <button
-                                  type="button"
-                                  className="gov-btn"
-                                  onClick={() => copyText(capture.endpoints.webhook_post, `webhook-post-${source.id}`)}
-                                >
-                                  {copiedKey === `webhook-post-${source.id}` ? '✓ Copied!' : 'Copy'}
-                                </button>
-                              </div>
-
-                              {source.slug === 'google-ads' && (
-                                <p className="muted" style={{ fontSize: '12px', marginTop: '6px' }}>
-                                  Paste this Webhook URL into your Google Ads Lead Form webhook settings.
-                                </p>
-                              )}
-
-                              {source.slug === 'whatsapp' && (
-                                <div style={{ marginTop: '8px', fontSize: '12px' }}>
-                                  <div className="lead-endpoint-row" style={{ marginTop: '4px' }}>
-                                    <div>
-                                      <span>Verify Token</span>
-                                      <code>surfsync_verify</code>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      className="gov-btn"
-                                      onClick={() => copyText('surfsync_verify', `wa-verify-${source.id}`)}
-                                    >
-                                      {copiedKey === `wa-verify-${source.id}` ? '✓ Copied!' : 'Copy'}
-                                    </button>
-                                  </div>
-                                  <p className="muted" style={{ marginTop: '6px' }}>
-                                    Paste this URL and Verify Token in your Meta Developer App Webhooks setup.
-                                  </p>
-                                </div>
-                              )}
-
-                              {source.slug === 'calling' && (
-                                <p className="muted" style={{ fontSize: '12px', marginTop: '6px' }}>
-                                  Set this Webhook URL in your telephony system callback settings.
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </>
+                      {/* Generic Channels */}
+                      {!isFacebook && !isExcel && !isForm && source.slug !== 'whatsapp' && (
+                        <div style={{ fontSize: '12px', color: '#6B7280' }}>
+                          {enabled ? 'Channel active — incoming leads sync to inbox automatically.' : 'Enable to start receiving leads from this channel.'}
+                        </div>
                       )}
                     </div>
                   )}
-                </article>
+                </div>
               );
             })}
           </div>
-          {!isAdmin && <p className="muted">Only company admins can connect channels.</p>}
-        </section>
+        </div>
       )}
+
+      {/* ------------------- TAB: ALL LEADS INBOX ------------------- */}
       {activeTab === 'inbox' && (
-        <div className="gov-table-stack">
-          <div className="gov-table-toolbar">
-            <div className="gov-table-title">Lead Master List</div>
-            <form className="gov-table-tools" onSubmit={handleSearch}>
-              <label>
-                Search
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* High-Density Table Toolbar */}
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E6E9EE',
+            borderRadius: '12px',
+            padding: '14px 18px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h2 style={{ fontSize: '15px', fontWeight: 800, color: '#111827', margin: 0, fontFamily: 'Manrope, sans-serif' }}>
+                All Captured Leads
+              </h2>
+              <span className="num" style={{ fontSize: '12px', fontWeight: 700, backgroundColor: '#F3F4F6', color: '#4B5563', padding: '2px 8px', borderRadius: '999px' }}>
+                {pagination.total} records
+              </span>
+            </div>
+
+            {/* Filter Form */}
+            <form onSubmit={handleSearch} style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ position: 'relative' }}>
+                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Name / phone / email / lead ID"
+                  placeholder="Search name, phone, email, ID…"
+                  style={{
+                    height: '36px',
+                    padding: '0 12px 0 32px',
+                    fontSize: '13px',
+                    border: '1px solid #E6E9EE',
+                    borderRadius: '8px',
+                    minWidth: '220px',
+                    outline: 'none',
+                  }}
                 />
-              </label>
-              <label>
-                Source
-                <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
-                  <option value="">All</option>
-                  {sources.map((s) => (
-                    <option key={s.id} value={s.slug}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Status
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                  <option value="">All</option>
-                  <option value="new">New</option>
-                  <option value="contacted">Contacted</option>
-                  <option value="qualified">Qualified</option>
-                  <option value="won">Won</option>
-                  <option value="lost">Lost</option>
-                </select>
-              </label>
-              <button type="submit" className="gov-btn gov-btn-primary">
-                Apply
+              </div>
+
+              <select
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value)}
+                style={{
+                  height: '36px',
+                  padding: '0 10px',
+                  fontSize: '13px',
+                  border: '1px solid #E6E9EE',
+                  borderRadius: '8px',
+                  backgroundColor: '#FFFFFF',
+                  color: '#374151',
+                  outline: 'none',
+                }}
+              >
+                <option value="">All Sources</option>
+                {sources.map((s) => (
+                  <option key={s.id} value={s.slug}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{
+                  height: '36px',
+                  padding: '0 10px',
+                  fontSize: '13px',
+                  border: '1px solid #E6E9EE',
+                  borderRadius: '8px',
+                  backgroundColor: '#FFFFFF',
+                  color: '#374151',
+                  outline: 'none',
+                }}
+              >
+                <option value="">All Statuses</option>
+                <option value="new">New</option>
+                <option value="contacted">Contacted</option>
+                <option value="qualified">Qualified</option>
+                <option value="won">Won</option>
+                <option value="lost">Lost</option>
+              </select>
+
+              <button
+                type="submit"
+                style={{
+                  height: '36px',
+                  padding: '0 14px',
+                  backgroundColor: '#F68713',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Filter
               </button>
             </form>
           </div>
 
-          <section className="gov-table-wrap">
-          <div className="gov-table-scroll">
-            <table className="gov-table">
-              <thead>
-                <tr>
-                  {dynamicColumns.map((col) => (
-                    <th key={col.key}>{col.label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {leads.length === 0 && (
-                  <tr>
-                    <td colSpan={dynamicColumns.length} className="gov-empty">
-                      No leads yet. Enable a source or create a lead manually.
-                    </td>
+          {/* Component 3.2 High-Density Data Table */}
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E6E9EE',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+          }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '1000px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E6E9EE' }}>
+                    {dynamicColumns.map((col) => (
+                      <th
+                        key={col.key}
+                        style={{
+                          padding: '12px 16px',
+                          textAlign: 'left',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: '#475569',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          fontFamily: 'Manrope, sans-serif',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {col.label}
+                      </th>
+                    ))}
                   </tr>
-                )}
-                {leads.map((lead, index) => (
-                  <tr key={lead.id} className={index % 2 === 1 ? 'gov-row-alt' : ''}>
-                    {dynamicColumns.map((col) => {
-                      if (col.isLeadCode) {
-                        return (
-                          <td key={col.key} className="gov-strong">
-                            {lead.lead_code}
-                          </td>
-                        );
-                      }
-                      if (col.isDate) {
-                        return (
-                          <td key={col.key}>
-                            {formatDate(lead.lead_date)}
-                          </td>
-                        );
-                      }
-                      if (col.isSalesperson) {
-                        return (
-                          <td key={col.key}>
-                            {isAdmin ? (
-                              <select
-                                className="lead-inline-select"
-                                value={lead.assigned_to || ''}
-                                onChange={(e) => assignLead(lead.id, e.target.value)}
-                                disabled={busy}
-                              >
-                                <option value="">Unassigned</option>
-                                {salespeople.map((m) => (
-                                  <option key={m.id} value={m.id}>
-                                    {m.name}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              lead.assigned_name || '—'
-                            )}
-                          </td>
-                        );
-                      }
-                      if (col.isTags) {
-                        return (
-                          <td key={col.key}>
-                            <div className="lead-tags">
-                              {(lead.tags || []).length === 0 && '—'}
-                              {(lead.tags || []).map((tag) => (
-                                <span key={tag} className="lead-tag">
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          </td>
-                        );
-                      }
-                      if (col.isStatus) {
-                        return (
-                          <td key={col.key}>
-                            <select
-                              className="lead-inline-select"
-                              value={lead.status}
-                              onChange={(e) => updateStatus(lead.id, e.target.value)}
-                              disabled={busy}
-                            >
-                              <option value="new">New</option>
-                              <option value="contacted">Contacted</option>
-                              <option value="qualified">Qualified</option>
-                              <option value="won">Won</option>
-                              <option value="lost">Lost</option>
-                            </select>
-                          </td>
-                        );
-                      }
-                      return (
-                        <td key={col.key}>
-                          {getLeadCellValue(lead, col.key)}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {leads.length === 0 ? (
+                    <tr>
+                      <td colSpan={dynamicColumns.length} style={{ textAlign: 'center', padding: '3rem 1rem', color: '#9CA3AF' }}>
+                        No leads found in this view.
+                      </td>
+                    </tr>
+                  ) : (
+                    leads.map((lead, idx) => (
+                      <tr
+                        key={lead.id}
+                        style={{
+                          backgroundColor: idx % 2 === 1 ? '#FBFDFE' : '#FFFFFF',
+                          borderBottom: '1px solid #E6E9EE',
+                          transition: 'background-color 0.12s ease',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F8FAFC'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = idx % 2 === 1 ? '#FBFDFE' : '#FFFFFF'; }}
+                      >
+                        {dynamicColumns.map((col) => {
+                          if (col.isLeadCode) {
+                            return (
+                              <td key={col.key} className="num" style={{ padding: '12px 16px', fontWeight: 800, color: '#111827', whiteSpace: 'nowrap' }}>
+                                {lead.lead_code}
+                              </td>
+                            );
+                          }
+                          if (col.isDate) {
+                            return (
+                              <td key={col.key} className="num" style={{ padding: '12px 16px', color: '#6B7280', fontSize: '12px', whiteSpace: 'nowrap' }}>
+                                {formatDate(lead.lead_date)}
+                              </td>
+                            );
+                          }
+                          if (col.isSalesperson) {
+                            return (
+                              <td key={col.key} style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                                {isAdmin ? (
+                                  <select
+                                    value={lead.assigned_to || ''}
+                                    onChange={(e) => assignLead(lead.id, e.target.value)}
+                                    disabled={busy}
+                                    style={{
+                                      padding: '4px 8px',
+                                      fontSize: '12px',
+                                      fontWeight: 600,
+                                      borderRadius: '6px',
+                                      border: '1px solid #E6E9EE',
+                                      backgroundColor: '#FFFFFF',
+                                      color: '#374151',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    <option value="">Unassigned</option>
+                                    {salespeople.map((m) => (
+                                      <option key={m.id} value={m.id}>
+                                        {m.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  lead.assigned_name || '—'
+                                )}
+                              </td>
+                            );
+                          }
+                          if (col.isTags) {
+                            return (
+                              <td key={col.key} style={{ padding: '12px 16px' }}>
+                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                  {(lead.tags || []).length === 0 && <span style={{ color: '#9CA3AF' }}>—</span>}
+                                  {(lead.tags || []).map((tag) => (
+                                    <span
+                                      key={tag}
+                                      style={{
+                                        fontSize: '11px',
+                                        fontWeight: 600,
+                                        backgroundColor: '#F3F4F6',
+                                        color: '#374151',
+                                        padding: '1px 6px',
+                                        borderRadius: '4px',
+                                      }}
+                                    >
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            );
+                          }
+                          if (col.isStatus) {
+                            return (
+                              <td key={col.key} style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                                <select
+                                  value={lead.status}
+                                  onChange={(e) => updateStatus(lead.id, e.target.value)}
+                                  disabled={busy}
+                                  style={{
+                                    padding: '4px 8px',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    border: '1px solid #E6E9EE',
+                                    backgroundColor:
+                                      lead.status === 'won'
+                                        ? '#ECFDF5'
+                                        : lead.status === 'lost'
+                                          ? '#FEF2F2'
+                                          : lead.status === 'contacted'
+                                            ? '#E8F6FA'
+                                            : '#FFF3E6',
+                                    color:
+                                      lead.status === 'won'
+                                        ? '#059669'
+                                        : lead.status === 'lost'
+                                          ? '#DC2626'
+                                          : lead.status === 'contacted'
+                                            ? '#1D667C'
+                                            : '#B65807',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <option value="new">New</option>
+                                  <option value="contacted">Contacted</option>
+                                  <option value="qualified">Qualified</option>
+                                  <option value="won">Won</option>
+                                  <option value="lost">Lost</option>
+                                </select>
+                              </td>
+                            );
+                          }
+                          return (
+                            <td key={col.key} style={{ padding: '12px 16px', color: '#374151' }}>
+                              {getLeadCellValue(lead, col.key)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-          <div className="gov-pagination">
-            <span>
-              Showing {leads.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1} to{' '}
-              {Math.min(page * PAGE_SIZE, pagination.total)} of {pagination.total} entries
-            </span>
-            <div className="gov-page-btns">
-              <button
-                type="button"
-                className="gov-btn"
-                disabled={page <= 1}
-                onClick={() => loadLeads(page - 1)}
-              >
-                Prev
-              </button>
-              <span className="gov-ellipsis">
-                Page {page} / {pagination.totalPages}
+            {/* Pagination */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '12px 18px',
+              borderTop: '1px solid #E6E9EE',
+              backgroundColor: '#FFFFFF',
+              fontSize: '13px',
+              color: '#6B7280',
+              flexWrap: 'wrap',
+              gap: '10px',
+            }}>
+              <span>
+                Showing <strong className="num">{leads.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}</strong> to{' '}
+                <strong className="num">{Math.min(page * PAGE_SIZE, pagination.total)}</strong> of{' '}
+                <strong className="num">{pagination.total}</strong> entries
               </span>
-              <button
-                type="button"
-                className="gov-btn"
-                disabled={page >= pagination.totalPages}
-                onClick={() => loadLeads(page + 1)}
-              >
-                Next
-              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => loadLeads(page - 1)}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid #E6E9EE',
+                    backgroundColor: '#FFFFFF',
+                    color: '#374151',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: page <= 1 ? 'not-allowed' : 'pointer',
+                    opacity: page <= 1 ? 0.5 : 1,
+                  }}
+                >
+                  Prev
+                </button>
+                <span className="num" style={{ padding: '0 8px', fontSize: '12px', fontWeight: 700, color: '#111827' }}>
+                  Page {page} of {pagination.totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={page >= pagination.totalPages}
+                  onClick={() => loadLeads(page + 1)}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid #E6E9EE',
+                    backgroundColor: '#FFFFFF',
+                    color: '#374151',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: page >= pagination.totalPages ? 'not-allowed' : 'pointer',
+                    opacity: page >= pagination.totalPages ? 0.5 : 1,
+                  }}
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </div>
-          </section>
         </div>
       )}
 
-      {/* WhatsApp Live Chat & Salesperson Conversations Modal */}
+      {/* WhatsApp Chat Modal */}
       <WhatsAppChatModal
         isOpen={showWhatsAppModal}
         onClose={() => setShowWhatsAppModal(false)}

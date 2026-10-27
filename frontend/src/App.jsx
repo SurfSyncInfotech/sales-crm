@@ -24,6 +24,8 @@ import PipelinePage from './pages/PipelinePage';
 import TasksPage from './pages/TasksPage';
 import QuotationsPage from './pages/QuotationsPage';
 import AutomationPage from './pages/AutomationPage';
+import CompanyWabaPage from './pages/CompanyWabaPage';
+import AdminWabaPage from './pages/AdminWabaPage';
 import WorkflowSettingsPage from './pages/WorkflowSettingsPage';
 import WorkflowProvider from './features/workflow/WorkflowProvider';
 import PublicLeadCapturePage from './pages/PublicLeadCapturePage';
@@ -67,6 +69,7 @@ export default function App() {
               <Route path="plans" element={<PlansPage />} />
               <Route path="billing" element={<BillingPage />} />
               <Route path="trials" element={<TrialPage />} />
+              <Route path="whatsapp-reseller" element={<AdminWabaPage />} />
             </Route>
           </Route>
 
@@ -94,6 +97,7 @@ export default function App() {
               <Route path="tasks" element={<TasksPage />} />
               <Route path="quotations" element={<QuotationsPage />} />
               <Route path="automation" element={<AutomationPage />} />
+              <Route path="whatsapp-api" element={<CompanyWabaPage />} />
               <Route path="team" element={<CompanyTeamPage />} />
               <Route path="workflow-settings" element={<WorkflowSettingsPage />} />
             </Route>

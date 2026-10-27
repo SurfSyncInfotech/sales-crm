@@ -4,7 +4,7 @@ import { companyPortalApi } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Key } from 'lucide-react';
 
-const empty = { name: '', email: '', password: '', domain: '' };
+const empty = { name: '', email: '', phone: '', password: '', domain: '' };
 
 export default function CompanyTeamPage() {
   const { user, setSalesSession } = useAuth('company');
@@ -135,6 +135,16 @@ export default function CompanyTeamPage() {
             />
           </label>
           <label>
+            Mobile Number
+            <input
+              type="tel"
+              value={form.phone}
+              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              placeholder="e.g. or +91 9199992567"
+              required
+            />
+          </label>
+          <label>
             Password
             <input
               type="password"
@@ -183,6 +193,11 @@ export default function CompanyTeamPage() {
                 <td>
                   <strong>{member.name}</strong>
                   <small>{member.email}</small>
+                  {member.agent_phone && (
+                    <small style={{ color: '#0d9488', fontWeight: '600', display: 'block', marginTop: '2px' }}>
+                      📞 {member.agent_phone}
+                    </small>
+                  )}
                 </td>
                 <td>{member.role === 'company_admin' ? 'Admin' : 'Salesperson'}</td>
                 <td>

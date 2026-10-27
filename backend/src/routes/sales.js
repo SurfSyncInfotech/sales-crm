@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../config/db');
 const { authRequired, requireCompanyUser } = require('../middleware/auth');
+const notif = require('../services/notificationService');
 
 const router = express.Router();
 
@@ -657,6 +658,17 @@ router.put('/leads/:id/status', async (req, res) => {
        WHERE l.id = ?`,
       [leadId]
     );
+
+    // Trigger Notification Events
+    if (status === 'quotation_requested') {
+      notif.notifyQuotationRequested(updated, req.user, { estimated_budget: deal_value || quotation_notes }).catch(console.error);
+    } else if (status === 'won') {
+      notif.notifyDealWon(updated, req.user, deal_value).catch(console.error);
+    } else if (status === 'lost') {
+      notif.notifyDealLost(updated, req.user, lost_reason || notes).catch(console.error);
+    } else if (status === 'quotation_sent') {
+      notif.notifyQuotationSent(updated, updated.claimed_by || updated.assigned_to).catch(console.error);
+    }
 
     res.json({
       message: 'Status updated successfully',

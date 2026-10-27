@@ -9,11 +9,15 @@ export default function StatusFeedbackModal({
   onClose,
   onSubmit,
   isSubmitting,
+  submitting,
 }) {
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
 
-  if (!isOpen || !lead) return null;
+  const isBusy = Boolean(isSubmitting || submitting);
+  const show = isOpen !== undefined ? isOpen : Boolean(lead);
+
+  if (!show || !lead) return null;
 
   const isDemo = targetStatus === 'demo_requested';
   const currentStatusLabel = lead.status?.replace(/_/g, ' ') || 'New';
@@ -33,49 +37,27 @@ export default function StatusFeedbackModal({
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.65)',
-        backdropFilter: 'blur(3px)',
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem',
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: '#fff',
-          borderRadius: '14px',
-          width: '100%',
-          maxWidth: '520px',
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-          overflow: 'hidden',
-          animation: 'fadeIn 0.15s ease-out',
-        }}
-      >
+    <div className="surfsync-modal-overlay">
+      <div className="surfsync-modal-content" style={{ maxWidth: '520px' }}>
         {/* Header */}
         <div
           style={{
             padding: '1.1rem 1.35rem',
-            borderBottom: '1px solid #f1f5f9',
+            borderBottom: '1px solid #E6E9EE',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            backgroundColor: '#fafafa',
+            backgroundColor: '#FAFAFB',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
                 width: '32px',
                 height: '32px',
                 borderRadius: '8px',
-                backgroundColor: isDemo ? '#e0f2fe' : '#ecfdf5',
-                color: isDemo ? '#0284c7' : '#059669',
+                backgroundColor: isDemo ? '#E8F6FA' : '#FFF3E6',
+                color: isDemo ? '#2A9CB8' : '#F68713',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -84,22 +66,22 @@ export default function StatusFeedbackModal({
               {isDemo ? <Monitor size={17} /> : <MessageSquareText size={17} />}
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: '800', color: '#0f172a' }}>
-                {isDemo ? 'Demo Website & Details Request' : 'Stage Feedback Required'}
+              <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: '800', color: '#111827' }}>
+                {isDemo ? 'Demo Website & Details Request' : 'Stage Transition Feedback'}
               </h3>
-              <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
-                {isDemo ? 'Send client demo specifications directly to Admin' : 'Please record call / client notes for this update'}
+              <div style={{ fontSize: '0.74rem', color: '#6B7280' }}>
+                {isDemo ? 'Send client demo specifications directly to Admin' : 'Record conversation notes for this status change'}
               </div>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            disabled={isSubmitting}
+            disabled={isBusy}
             style={{
               background: 'none',
               border: 'none',
-              color: '#94a3b8',
+              color: '#9CA3AF',
               cursor: 'pointer',
               padding: '4px',
               borderRadius: '6px',
@@ -114,20 +96,20 @@ export default function StatusFeedbackModal({
           {/* Lead Context Pill */}
           <div
             style={{
-              backgroundColor: '#f8fafc',
-              border: '1px solid #e2e8f0',
+              backgroundColor: '#F9FAFB',
+              border: '1px solid #E6E9EE',
               borderRadius: '8px',
               padding: '0.75rem 0.9rem',
               marginBottom: '1rem',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <strong style={{ fontSize: '0.88rem', color: '#0f172a' }}>{lead.name}</strong>
-              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{lead.phone}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <strong style={{ fontSize: '0.88rem', color: '#111827' }}>{lead.name}</strong>
+              <span className="num" style={{ fontSize: '0.76rem', color: '#6B7280' }}>{lead.phone}</span>
             </div>
             {lead.lead_company && (
-              <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '6px' }}>
-                Company: {lead.lead_company}
+              <div style={{ fontSize: '0.75rem', color: '#6B7280', marginBottom: '4px' }}>
+                {lead.lead_company}
               </div>
             )}
 
@@ -135,8 +117,8 @@ export default function StatusFeedbackModal({
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '0.74rem' }}>
               <span
                 style={{
-                  backgroundColor: '#e2e8f0',
-                  color: '#475569',
+                  backgroundColor: '#F1F3F6',
+                  color: '#4B5563',
                   padding: '2px 8px',
                   borderRadius: '4px',
                   fontWeight: '600',
@@ -145,11 +127,11 @@ export default function StatusFeedbackModal({
               >
                 {currentStatusLabel}
               </span>
-              <ArrowRight size={13} color="#94a3b8" />
+              <ArrowRight size={13} color="#9CA3AF" />
               <span
                 style={{
-                  backgroundColor: '#dbeafe',
-                  color: '#1d4ed8',
+                  backgroundColor: '#FFF3E6',
+                  color: '#B65807',
                   padding: '2px 8px',
                   borderRadius: '4px',
                   fontWeight: '700',
@@ -168,9 +150,9 @@ export default function StatusFeedbackModal({
                 alignItems: 'center',
                 gap: '6px',
                 padding: '0.6rem 0.8rem',
-                backgroundColor: '#fef2f2',
-                color: '#b91c1c',
-                border: '1px solid #fecaca',
+                backgroundColor: '#FEE2E2',
+                color: '#DC2626',
+                border: '1px solid #FECACA',
                 borderRadius: '6px',
                 fontSize: '0.78rem',
                 marginBottom: '1rem',
@@ -188,20 +170,20 @@ export default function StatusFeedbackModal({
                 style={{
                   fontSize: '0.78rem',
                   fontWeight: '700',
-                  color: '#334155',
+                  color: '#374151',
                   margin: 0,
                 }}
               >
-                {isDemo ? 'Demo Website / Requirements Details' : 'Feedback / Discussion Notes'} <span style={{ color: '#ef4444' }}>*</span>
+                {isDemo ? 'Demo Website / Requirements Details' : 'Feedback / Discussion Notes'} <span style={{ color: '#DC2626' }}>*</span>
               </label>
 
               {/* Voice-to-Text Shortcut Badge */}
               <span
                 style={{
                   fontSize: '0.7rem',
-                  color: '#0d9488',
-                  backgroundColor: '#f0fdfa',
-                  border: '1px solid #ccfbf1',
+                  color: '#1D667C',
+                  backgroundColor: '#E8F6FA',
+                  border: '1px solid #BEE1EB',
                   padding: '2px 8px',
                   borderRadius: '5px',
                   display: 'inline-flex',
@@ -211,8 +193,8 @@ export default function StatusFeedbackModal({
                 }}
                 title="Press Win + H on your keyboard to speak into mic"
               >
-                <Mic size={11} color="#0d9488" />
-                <span>Voice-to-Text: Press <kbd style={{ padding: '1px 5px', backgroundColor: '#fff', border: '1px solid #99f6e4', borderRadius: '3px', fontFamily: 'monospace', fontSize: '0.68rem', fontWeight: '800', color: '#0f766e' }}>Win + H</kbd> for Mic</span>
+                <Mic size={11} color="#2A9CB8" />
+                <span>Voice-to-Text: Press <kbd style={{ padding: '1px 5px', backgroundColor: '#fff', border: '1px solid #BEE1EB', borderRadius: '3px', fontFamily: 'monospace', fontSize: '0.68rem', fontWeight: '800', color: '#1D667C' }}>Win + H</kbd> for Mic</span>
               </span>
             </div>
 
@@ -233,23 +215,13 @@ export default function StatusFeedbackModal({
                 fontSize: '0.82rem',
                 lineHeight: '1.45',
                 borderRadius: '8px',
-                border: '1px solid #cbd5e1',
+                border: '1px solid #E6E9EE',
                 outline: 'none',
                 fontFamily: 'inherit',
                 boxSizing: 'border-box',
                 resize: 'vertical',
               }}
             />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: '#64748b', marginTop: '5px', flexWrap: 'wrap', gap: '4px' }}>
-              <span>
-                {isDemo
-                  ? 'These details will be queued in the Admin Quotes & Demos dashboard for fulfillment.'
-                  : 'This feedback will be stored in the permanent lead feedback timeline.'}
-              </span>
-              <span style={{ color: '#0f766e', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                🎙️ You can use keyboard shortcut <kbd style={{ padding: '1px 5px', backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '3px', fontFamily: 'monospace', fontSize: '0.68rem', color: '#0f172a', fontWeight: '700' }}>Win + H</kbd> for mic voice typing
-              </span>
-            </div>
           </div>
 
           {/* Action Buttons */}
@@ -257,40 +229,18 @@ export default function StatusFeedbackModal({
             <button
               type="button"
               onClick={onClose}
-              disabled={isSubmitting}
-              style={{
-                padding: '7px 14px',
-                fontSize: '0.82rem',
-                fontWeight: '600',
-                borderRadius: '6px',
-                border: '1px solid #cbd5e1',
-                backgroundColor: '#fff',
-                color: '#475569',
-                cursor: 'pointer',
-              }}
+              disabled={isBusy}
+              className="btn-secondary-action"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !feedback.trim()}
-              style={{
-                padding: '7px 18px',
-                fontSize: '0.82rem',
-                fontWeight: '700',
-                borderRadius: '6px',
-                border: 'none',
-                backgroundColor: !feedback.trim() ? '#94a3b8' : (isDemo ? '#0284c7' : '#059669'),
-                color: '#fff',
-                cursor: !feedback.trim() || isSubmitting ? 'not-allowed' : 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-              }}
+              disabled={isBusy || !feedback.trim()}
+              className="btn-primary-action"
             >
               <CheckCircle2 size={14} />
-              <span>{isSubmitting ? 'Saving…' : (isDemo ? 'Submit Demo Request to Admin' : 'Save Feedback & Update Stage')}</span>
+              <span>{isBusy ? 'Saving…' : (isDemo ? 'Submit Demo Request' : 'Save & Update Stage')}</span>
             </button>
           </div>
         </form>

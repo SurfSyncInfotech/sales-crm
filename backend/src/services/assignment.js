@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { logActivity } = require('./pipeline');
+const notif = require('./notificationService');
 
 function slugify(text) {
   return String(text || '')
@@ -118,6 +119,7 @@ async function autoAssignLead(lead, { payload = {}, sourceSlug = null } = {}) {
         summary: `Domain: ${domain.name} — no eligible salesperson, moved to unassigned queue`,
         meta: { domain_id: domain.id, alert_manager: true },
       });
+      notif.notifyOpenPool({ ...lead, company_id: companyId }).catch(console.error);
       return { assigned: false, reason: 'no_assignee', domain };
     }
 
@@ -133,6 +135,7 @@ async function autoAssignLead(lead, { payload = {}, sourceSlug = null } = {}) {
       summary: `Assigned to ${assignee.name} (domain ${domain.name}, ${reason})`,
       meta: { domain_id: domain.id, user_id: assignee.id, reason, open_leads: Number(assignee.open_leads) },
     });
+    notif.notifyLeadAssigned({ ...lead, company_id: companyId }, assignee).catch(console.error);
     return { assigned: true, domain, user_id: assignee.id, user_name: assignee.name };
   } catch (err) {
     console.error('autoAssignLead failed:', err.message);

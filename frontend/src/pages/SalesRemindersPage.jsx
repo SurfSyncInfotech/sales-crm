@@ -8,39 +8,16 @@ import {
   MessageSquare,
   Search,
   Filter,
-  Tag,
-  ChevronDown,
-  MoreHorizontal,
-  X,
   Send,
-  Sparkles,
-  Trophy,
   Check,
   Phone,
   LayoutGrid,
   List,
-  RotateCcw,
   Building,
+  RotateCcw,
+  X,
+  ArrowRight,
 } from 'lucide-react';
-
-const AVATAR_COLORS = [
-  { bg: '#dbeafe', color: '#1e40af' }, // Blue
-  { bg: '#ffedd5', color: '#9a3412' }, // Orange
-  { bg: '#fce7f3', color: '#9d174d' }, // Pink
-  { bg: '#ede9fe', color: '#5b21b6' }, // Purple
-  { bg: '#dcfce7', color: '#166534' }, // Green
-  { bg: '#fef3c7', color: '#854d0e' }, // Amber
-  { bg: '#ccfbf1', color: '#0f766e' }, // Teal
-];
-
-function getAvatarStyle(name = '') {
-  let hash = 0;
-  for (let i = 0; i < name.length; i += 1) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const index = Math.abs(hash) % AVATAR_COLORS.length;
-  return AVATAR_COLORS[index];
-}
 
 function getInitials(name = '') {
   const parts = name.trim().split(/\s+/);
@@ -88,25 +65,30 @@ export default function SalesRemindersPage() {
 
   // Selection
   const [selectedIds, setSelectedIds] = useState([]);
-  const [menuId, setMenuId] = useState(null);
 
-  async function loadReminders() {
-    setLoading(true);
+  async function loadReminders(silent = false) {
+    if (!silent) setLoading(true);
     setError('');
     try {
       const data = await salesApi.reminders();
       setReminders(data.reminders || []);
     } catch (err) {
-      setError(err.message || 'Failed to load reminders');
+      if (!silent) setError(err.message || 'Failed to load reminders');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
   useEffect(() => {
     loadReminders();
     setSelectedIds([]);
-    setMenuId(null);
+
+    // Background polling every 20 seconds
+    const interval = setInterval(() => {
+      loadReminders(true);
+    }, 20000);
+
+    return () => clearInterval(interval);
   }, []);
 
   function getWhatsAppUrl(reminder) {
@@ -128,7 +110,7 @@ export default function SalesRemindersPage() {
     return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
   }
 
-  // Top Cadence Statistics (Calculated from all reminders)
+  // Top Cadence Statistics
   const cadenceStats = useMemo(() => {
     const now = Date.now();
     const stats = {
@@ -166,7 +148,6 @@ export default function SalesRemindersPage() {
     const q = search.toLowerCase().trim();
 
     return reminders.filter((r) => {
-      // Search filter
       const matchesSearch =
         !q ||
         (r.lead_name && r.lead_name.toLowerCase().includes(q)) ||
@@ -175,7 +156,6 @@ export default function SalesRemindersPage() {
 
       if (!matchesSearch) return false;
 
-      // Cadence filter
       if (cadenceFilter !== 'all') {
         const day = String(r.day_number);
         if (cadenceFilter === 'day2' && day !== '2') return false;
@@ -184,12 +164,10 @@ export default function SalesRemindersPage() {
         if (cadenceFilter === 'day21' && day !== '21') return false;
       }
 
-      // Stage filter
       if (stageFilter !== 'all' && r.lead_status !== stageFilter) {
         return false;
       }
 
-      // Status filter
       const isDue = r.status === 'pending' && new Date(r.scheduled_for).getTime() <= now;
       const isUpcoming = r.status === 'pending' && new Date(r.scheduled_for).getTime() > now;
       const isSent = r.status === 'sent';
@@ -198,7 +176,6 @@ export default function SalesRemindersPage() {
       if (statusFilter === 'upcoming' && !isUpcoming) return false;
       if (statusFilter === 'sent' && !isSent) return false;
 
-      // Date filter (Timezone-safe)
       if (dateFilter !== 'all') {
         const remDateStr = getLocalDateStr(r.scheduled_for);
         const todayStr = getLocalDateStr(new Date());
@@ -254,14 +231,11 @@ export default function SalesRemindersPage() {
       leadMap.get(key).reminders.push(r);
     });
 
-    // Sort each group's reminders by scheduled_for ascending (Day 2 -> Day 5 -> Day 10 -> Day 21)
     groups.forEach((g) => {
       g.reminders.sort((a, b) => new Date(a.scheduled_for).getTime() - new Date(b.scheduled_for).getTime());
     });
 
-    // Sort the lead cards so the latest / newest leads appear FIRST
     groups.sort((a, b) => b.latestTime - a.latestTime);
-
     return groups;
   }, [filteredReminders]);
 
@@ -281,599 +255,393 @@ export default function SalesRemindersPage() {
     }
   }
 
-  // Cadence badge styler
   function getCadenceBadge(dayNumber) {
     const day = Number(dayNumber);
-    if (day === 2) return { bg: '#eff6ff', color: '#2563eb', label: 'Day 2' };
-    if (day === 5 || day === 4) return { bg: '#ecfdf5', color: '#16a34a', label: 'Day 5' };
-    if (day === 10 || day === 7) return { bg: '#faf5ff', color: '#7c3aed', label: 'Day 10' };
-    return { bg: '#fdf2f8', color: '#db2777', label: 'Day 21' };
-  }
-
-  // Stage badge styler
-  function getStageBadge(status) {
-    switch (status) {
-      case 'interested':
-        return { bg: '#ecfdf5', color: '#16a34a', label: 'Interested' };
-      case 'followup':
-        return { bg: '#eff6ff', color: '#4f46e5', label: 'Follow-Up' };
-      case 'quotation_sent':
-        return { bg: '#faf5ff', color: '#9333ea', label: 'Quotation Sent' };
-      case 'quotation_requested':
-        return { bg: '#fff7ed', color: '#ea580c', label: 'Quotation Requested' };
-      case 'won':
-        return { bg: '#ecfdf5', color: '#10b981', label: 'Won' };
-      case 'lost':
-        return { bg: '#fef2f2', color: '#dc2626', label: 'Lost' };
-      default:
-        return { bg: '#f1f5f9', color: '#475569', label: status || 'Lead' };
-    }
+    if (day === 2) return { bg: '#E8F6FA', color: '#1D667C', label: 'Day 2' };
+    if (day === 5 || day === 4) return { bg: '#DCFCE7', color: '#166534', label: 'Day 5' };
+    if (day === 10 || day === 7) return { bg: '#FFF3E6', color: '#B65807', label: 'Day 10' };
+    return { bg: '#F3E8FF', color: '#6D28D9', label: 'Day 21' };
   }
 
   return (
     <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* Header Row */}
+      {/* Top Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <div style={{ fontSize: '0.72rem', fontWeight: '800', color: '#0d9488', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            Automated Engagement
-          </div>
-          <h1 style={{ fontSize: '1.85rem', fontWeight: '800', color: '#0f172a', margin: '0.2rem 0 0 0', letterSpacing: '-0.02em' }}>
-            WhatsApp Auto-Reminders
+          <h1 style={{ fontSize: '1.65rem', fontWeight: '800', color: '#111827', margin: 0, letterSpacing: '-0.025em' }}>
+            Auto-Reminders & Cadence
           </h1>
-          <p style={{ margin: '0.2rem 0 0 0', color: '#64748b', fontSize: '0.86rem' }}>
-            When a lead is marked as <strong>Interested</strong> or <strong>Quotation Sent</strong>, the system schedules automated touchpoint reminders.
+          <p style={{ margin: '0.25rem 0 0 0', color: '#6B7280', fontSize: '0.86rem' }}>
+            Scheduled WhatsApp touchpoints on Day 2, 5, 10, and 21 across your assigned leads.
           </p>
         </div>
 
-        {/* Top-Right Controls & View Switch */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <div
+        {/* View Switch: By Person (Cards) vs Flat Table */}
+        <div style={{ display: 'flex', backgroundColor: '#F1F3F6', padding: '3px', borderRadius: '8px' }}>
+          <button
+            type="button"
+            onClick={() => setViewMode('cards')}
             style={{
-              padding: '5px 12px',
-              backgroundColor: '#ecfdf5',
-              border: '1px solid #a7f3d0',
-              borderRadius: '20px',
-              fontSize: '0.74rem',
-              fontWeight: '700',
-              color: '#065f46',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px',
+              gap: '5px',
+              padding: '5px 12px',
+              fontSize: '0.78rem',
+              fontWeight: viewMode === 'cards' ? '700' : '500',
+              border: 'none',
+              borderRadius: '6px',
+              backgroundColor: viewMode === 'cards' ? '#FFFFFF' : 'transparent',
+              color: viewMode === 'cards' ? '#111827' : '#6B7280',
+              boxShadow: viewMode === 'cards' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+              cursor: 'pointer',
             }}
           >
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-            <span>Cadence Active: Day 2, 5, 10, 21</span>
-          </div>
+            <LayoutGrid size={13} /> By Client (Cards)
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '5px 12px',
+              fontSize: '0.78rem',
+              fontWeight: viewMode === 'table' ? '700' : '500',
+              border: 'none',
+              borderRadius: '6px',
+              backgroundColor: viewMode === 'table' ? '#FFFFFF' : 'transparent',
+              color: viewMode === 'table' ? '#111827' : '#6B7280',
+              boxShadow: viewMode === 'table' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+              cursor: 'pointer',
+            }}
+          >
+            <List size={13} /> Flat Table
+          </button>
+        </div>
+      </div>
 
-          {/* View Switch: Cards vs Table */}
-          <div style={{ display: 'flex', backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
-            <button
-              type="button"
-              onClick={() => setViewMode('cards')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '6px 12px',
-                fontSize: '0.8rem',
-                fontWeight: '700',
-                border: 'none',
-                backgroundColor: viewMode === 'cards' ? '#072423' : '#fff',
-                color: viewMode === 'cards' ? '#fff' : '#475569',
-                cursor: 'pointer',
-              }}
-            >
-              <LayoutGrid size={13} />
-              <span>By Person (Cards)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '6px 12px',
-                fontSize: '0.8rem',
-                fontWeight: '700',
-                border: 'none',
-                backgroundColor: viewMode === 'table' ? '#072423' : '#fff',
-                color: viewMode === 'table' ? '#fff' : '#475569',
-                cursor: 'pointer',
-              }}
-            >
-              <List size={13} />
-              <span>All Rows (Table)</span>
-            </button>
+      {/* 4 Cadence Summary Cards (Component 3.1) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1rem' }}>
+        <div className="sales-card" style={{ padding: '1.15rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: '600', color: '#6B7280' }}>Day 2 Cadence</span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#E8F6FA', color: '#2A9CB8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Calendar size={15} />
+            </div>
+          </div>
+          <div className="num" style={{ fontSize: '1.6rem', fontWeight: '800', color: '#111827', marginTop: '0.5rem', lineHeight: 1 }}>
+            {cadenceStats.day2.total}
+          </div>
+          <div style={{ fontSize: '0.74rem', color: cadenceStats.day2.dueNow > 0 ? '#DC2626' : '#16A34A', fontWeight: '700', marginTop: '0.4rem' }}>
+            {cadenceStats.day2.dueNow > 0 ? `${cadenceStats.day2.dueNow} due now` : 'All caught up'}
+          </div>
+        </div>
+
+        <div className="sales-card" style={{ padding: '1.15rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: '600', color: '#6B7280' }}>Day 5 Cadence</span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#DCFCE7', color: '#16A34A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CheckCircle2 size={15} />
+            </div>
+          </div>
+          <div className="num" style={{ fontSize: '1.6rem', fontWeight: '800', color: '#111827', marginTop: '0.5rem', lineHeight: 1 }}>
+            {cadenceStats.day5.total}
+          </div>
+          <div style={{ fontSize: '0.74rem', color: cadenceStats.day5.dueNow > 0 ? '#DC2626' : '#16A34A', fontWeight: '700', marginTop: '0.4rem' }}>
+            {cadenceStats.day5.dueNow > 0 ? `${cadenceStats.day5.dueNow} due now` : 'All caught up'}
+          </div>
+        </div>
+
+        <div className="sales-card" style={{ padding: '1.15rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: '600', color: '#6B7280' }}>Day 10 Cadence</span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#FFF3E6', color: '#F68713', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Mail size={15} />
+            </div>
+          </div>
+          <div className="num" style={{ fontSize: '1.6rem', fontWeight: '800', color: '#111827', marginTop: '0.5rem', lineHeight: 1 }}>
+            {cadenceStats.day10.total}
+          </div>
+          <div style={{ fontSize: '0.74rem', color: cadenceStats.day10.dueNow > 0 ? '#DC2626' : '#16A34A', fontWeight: '700', marginTop: '0.4rem' }}>
+            {cadenceStats.day10.dueNow > 0 ? `${cadenceStats.day10.dueNow} due now` : 'All caught up'}
+          </div>
+        </div>
+
+        <div className="sales-card" style={{ padding: '1.15rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: '600', color: '#6B7280' }}>Day 21 Final Cadence</span>
+            <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#F3E8FF', color: '#6D28D9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Clock size={15} />
+            </div>
+          </div>
+          <div className="num" style={{ fontSize: '1.6rem', fontWeight: '800', color: '#111827', marginTop: '0.5rem', lineHeight: 1 }}>
+            {cadenceStats.day21.total}
+          </div>
+          <div style={{ fontSize: '0.74rem', color: cadenceStats.day21.dueNow > 0 ? '#DC2626' : '#16A34A', fontWeight: '700', marginTop: '0.4rem' }}>
+            {cadenceStats.day21.dueNow > 0 ? `${cadenceStats.day21.dueNow} due now` : 'All caught up'}
           </div>
         </div>
       </div>
 
-      {/* 4 Cadence Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.85rem' }}>
-        {/* Card 1: Day 2 Reminders */}
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '1rem', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Calendar size={18} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <strong style={{ fontSize: '0.85rem', color: '#0f172a', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Day 2 Reminders</strong>
-              <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>First follow-up & brief.</div>
-            </div>
-          </div>
-          <div style={{ textAlign: 'right', flexShrink: 0, paddingLeft: '8px' }}>
-            <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', lineHeight: 1 }}>
-              {cadenceStats.day2.total}
-            </div>
-            <div style={{ fontSize: '0.68rem', fontWeight: '700', color: cadenceStats.day2.dueNow > 0 ? '#dc2626' : '#64748b', marginTop: '3px', whiteSpace: 'nowrap' }}>
-              {cadenceStats.day2.dueNow > 0 ? `${cadenceStats.day2.dueNow} due now` : cadenceStats.day2.total > 0 ? 'Concluded / Sent' : 'Scheduled'}
-            </div>
-          </div>
-        </div>
-
-        {/* Card 2: Day 5 Reminders */}
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '1rem', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#ecfdf5', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <CheckCircle2 size={18} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <strong style={{ fontSize: '0.85rem', color: '#0f172a', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Day 5 Reminders</strong>
-              <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Value & case studies.</div>
-            </div>
-          </div>
-          <div style={{ textAlign: 'right', flexShrink: 0, paddingLeft: '8px' }}>
-            <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', lineHeight: 1 }}>
-              {cadenceStats.day5.total}
-            </div>
-            <div style={{ fontSize: '0.68rem', fontWeight: '700', color: cadenceStats.day5.dueNow > 0 ? '#dc2626' : '#64748b', marginTop: '3px', whiteSpace: 'nowrap' }}>
-              {cadenceStats.day5.dueNow > 0 ? `${cadenceStats.day5.dueNow} due now` : cadenceStats.day5.total > 0 ? 'Concluded / Sent' : 'Scheduled'}
-            </div>
-          </div>
-        </div>
-
-        {/* Card 3: Day 10 Reminders */}
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '1rem', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#faf5ff', color: '#9333ea', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Mail size={18} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <strong style={{ fontSize: '0.85rem', color: '#0f172a', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Day 10 Reminders</strong>
-              <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Proposal inquiry.</div>
-            </div>
-          </div>
-          <div style={{ textAlign: 'right', flexShrink: 0, paddingLeft: '8px' }}>
-            <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', lineHeight: 1 }}>
-              {cadenceStats.day10.total}
-            </div>
-            <div style={{ fontSize: '0.68rem', fontWeight: '700', color: cadenceStats.day10.dueNow > 0 ? '#dc2626' : '#64748b', marginTop: '3px', whiteSpace: 'nowrap' }}>
-              {cadenceStats.day10.dueNow > 0 ? `${cadenceStats.day10.dueNow} due now` : cadenceStats.day10.total > 0 ? 'Concluded / Sent' : 'Scheduled'}
-            </div>
-          </div>
-        </div>
-
-        {/* Card 4: Day 21 Reminders */}
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '1rem', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#fdf2f8', color: '#db2777', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Clock size={18} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <strong style={{ fontSize: '0.85rem', color: '#0f172a', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Day 21 Reminders</strong>
-              <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Final re-engagement.</div>
-            </div>
-          </div>
-          <div style={{ textAlign: 'right', flexShrink: 0, paddingLeft: '8px' }}>
-            <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', lineHeight: 1 }}>
-              {cadenceStats.day21.total}
-            </div>
-            <div style={{ fontSize: '0.68rem', fontWeight: '700', color: cadenceStats.day21.dueNow > 0 ? '#dc2626' : '#64748b', marginTop: '3px', whiteSpace: 'nowrap' }}>
-              {cadenceStats.day21.dueNow > 0 ? `${cadenceStats.day21.dueNow} due now` : cadenceStats.day21.total > 0 ? 'Concluded / Sent' : 'Scheduled'}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filter Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '10px',
-          flexWrap: 'wrap',
-          backgroundColor: '#fff',
-          padding: '0.75rem 1rem',
-          borderRadius: '12px',
-          border: '1px solid #e2e8f0',
-        }}
-      >
-        {/* Left: Search Bar */}
-        <div style={{ position: 'relative', flex: '1 1 240px', minWidth: '200px' }}>
-          <Search size={15} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+      {/* Filter Toolbar (Foundation 02, 2.4) */}
+      <div className="sales-card" style={{ padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: '1 1 220px', minWidth: '180px' }}>
+          <Search size={14} color="#9CA3AF" style={{ position: 'absolute', left: '10px', top: '10px' }} />
           <input
             type="text"
-            placeholder="Search client name, phone, company…"
+            placeholder="Search client, phone, company…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{
               width: '100%',
-              padding: '8px 12px 8px 36px',
-              fontSize: '0.84rem',
-              border: '1px solid #cbd5e1',
-              borderRadius: '8px',
-              backgroundColor: '#fff',
-              outline: 'none',
               boxSizing: 'border-box',
+              padding: '7px 10px 7px 32px',
+              fontSize: '0.82rem',
+              border: '1px solid #E6E9EE',
+              borderRadius: '6px',
+              outline: 'none',
             }}
           />
         </div>
 
-        {/* Filter 1: Cadence */}
-        <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0 8px' }}>
-          <select
-            value={cadenceFilter}
-            onChange={(e) => setCadenceFilter(e.target.value)}
-            style={{ border: 'none', outline: 'none', padding: '8px 4px', fontSize: '0.82rem', fontWeight: '600', color: '#334155', backgroundColor: 'transparent', cursor: 'pointer' }}
-          >
-            <option value="all">All Reminders</option>
-            <option value="day2">Day 2</option>
-            <option value="day5">Day 5</option>
-            <option value="day10">Day 10</option>
-            <option value="day21">Day 21</option>
-          </select>
-        </div>
+        <select
+          value={cadenceFilter}
+          onChange={(e) => setCadenceFilter(e.target.value)}
+          style={{ padding: '7px 10px', fontSize: '0.8rem', border: '1px solid #E6E9EE', borderRadius: '6px', backgroundColor: '#FFFFFF', outline: 'none' }}
+        >
+          <option value="all">All Cadence Days</option>
+          <option value="day2">Day 2</option>
+          <option value="day5">Day 5</option>
+          <option value="day10">Day 10</option>
+          <option value="day21">Day 21</option>
+        </select>
 
-        {/* Filter 2: Stages */}
-        <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0 8px' }}>
-          <select
-            value={stageFilter}
-            onChange={(e) => setStageFilter(e.target.value)}
-            style={{ border: 'none', outline: 'none', padding: '8px 4px', fontSize: '0.82rem', fontWeight: '600', color: '#334155', backgroundColor: 'transparent', cursor: 'pointer' }}
-          >
-            <option value="all">All Stages</option>
-            <option value="interested">Interested</option>
-            <option value="followup">Follow-Up</option>
-            <option value="quotation_requested">Quotation Requested</option>
-            <option value="quotation_sent">Quotation Sent</option>
-            <option value="won">Won</option>
-          </select>
-        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          style={{ padding: '7px 10px', fontSize: '0.8rem', border: '1px solid #E6E9EE', borderRadius: '6px', backgroundColor: '#FFFFFF', outline: 'none' }}
+        >
+          <option value="all">All Status</option>
+          <option value="due">Due Now</option>
+          <option value="upcoming">Upcoming</option>
+          <option value="sent">Sent</option>
+        </select>
 
-        {/* Filter 3: Status */}
-        <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0 8px' }}>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{ border: 'none', outline: 'none', padding: '8px 4px', fontSize: '0.82rem', fontWeight: '600', color: '#334155', backgroundColor: 'transparent', cursor: 'pointer' }}
-          >
-            <option value="all">All Status</option>
-            <option value="due">Due Now</option>
-            <option value="upcoming">Upcoming</option>
-            <option value="sent">Sent</option>
-          </select>
-        </div>
+        <select
+          value={dateFilter}
+          onChange={(e) => {
+            setDateFilter(e.target.value);
+            if (e.target.value !== 'custom') setSpecificDate('');
+          }}
+          style={{ padding: '7px 10px', fontSize: '0.8rem', border: '1px solid #E6E9EE', borderRadius: '6px', backgroundColor: '#FFFFFF', outline: 'none' }}
+        >
+          <option value="all">All Dates</option>
+          <option value="today">Today</option>
+          <option value="this_week">Past 7 Days</option>
+          <option value="this_month">Past 30 Days</option>
+          <option value="custom">Specific Date…</option>
+        </select>
 
-        {/* Filter 4: Dates */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0 8px' }}>
-          <Calendar size={13} color="#64748b" />
-          <select
-            value={dateFilter}
-            onChange={(e) => {
-              setDateFilter(e.target.value);
-              if (e.target.value !== 'custom') setSpecificDate('');
+        {dateFilter === 'custom' && (
+          <input
+            type="date"
+            value={specificDate}
+            onChange={(e) => setSpecificDate(e.target.value)}
+            style={{ padding: '5px 8px', fontSize: '0.78rem', border: '1px solid #E6E9EE', borderRadius: '6px' }}
+          />
+        )}
+
+        {(search || cadenceFilter !== 'all' || statusFilter !== 'all' || dateFilter !== 'all') && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('');
+              setCadenceFilter('all');
+              setStatusFilter('all');
+              setDateFilter('all');
+              setSpecificDate('');
             }}
-            style={{ border: 'none', outline: 'none', padding: '8px 4px', fontSize: '0.82rem', fontWeight: '600', color: '#334155', backgroundColor: 'transparent', cursor: 'pointer' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', color: '#DC2626', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer' }}
           >
-            <option value="all">All Dates</option>
-            <option value="today">Today</option>
-            <option value="this_week">This Week</option>
-            <option value="this_month">This Month</option>
-            <option value="custom">Specific Date…</option>
-          </select>
-
-          {dateFilter === 'custom' && (
-            <input
-              type="date"
-              value={specificDate}
-              onChange={(e) => setSpecificDate(e.target.value)}
-              style={{ border: '1px solid #cbd5e1', borderRadius: '4px', padding: '2px 4px', fontSize: '0.78rem' }}
-            />
-          )}
-
-          {specificDate && (
-            <button
-              type="button"
-              onClick={() => setSpecificDate('')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
-            >
-              <X size={13} />
-            </button>
-          )}
-        </div>
+            <RotateCcw size={12} /> Clear Filters
+          </button>
+        )}
       </div>
 
       {error && (
-        <div style={{ padding: '0.85rem 1rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', borderRadius: '8px', fontSize: '0.85rem' }}>
+        <div style={{ padding: '0.75rem 1rem', backgroundColor: '#FEE2E2', border: '1px solid #FECACA', color: '#DC2626', borderRadius: '8px', fontSize: '0.84rem' }}>
           {error}
         </div>
       )}
 
-      {/* Main View Area */}
+      {/* Main Content Area */}
       {loading ? (
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '3.5rem', textAlign: 'center', color: '#94a3b8', border: '1px solid #e2e8f0' }}>
-          Loading scheduled touchpoint reminders…
+        <div className="sales-card" style={{ padding: '3rem', textAlign: 'center', color: '#6B7280' }}>
+          Loading scheduled reminders…
         </div>
       ) : filteredReminders.length === 0 ? (
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '3.5rem', textAlign: 'center', color: '#94a3b8', border: '1px solid #e2e8f0' }}>
-          <div style={{ fontSize: '0.95rem', fontWeight: '600', color: '#475569' }}>No scheduled reminders found</div>
-          <div style={{ fontSize: '0.82rem', marginTop: '4px' }}>
-            Mark leads as <strong>Interested</strong> or <strong>Quotation Sent</strong> to auto-schedule cadences.
-          </div>
+        <div className="sales-card" style={{ padding: '3rem', textAlign: 'center', color: '#9CA3AF' }}>
+          <Clock size={32} color="#D1D5DB" style={{ margin: '0 auto 0.5rem auto' }} />
+          <p style={{ margin: 0, fontWeight: '700', fontSize: '0.9rem', color: '#111827' }}>No scheduled reminders found</p>
+          <small style={{ fontSize: '0.78rem' }}>When leads are moved to Interested or Quote Sent, cadences schedule automatically.</small>
         </div>
       ) : viewMode === 'cards' ? (
-        /* ========================================================================= */
-        /* GROUPED BY PERSON (CARDS VIEW) - Clean, Uncluttered, Line-by-Line         */
-        /* ========================================================================= */
+        /* Grouped By Person (Cards View) */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {groupedByLead.map((group) => {
-            const avatarStyle = getAvatarStyle(group.lead_name);
             const initials = getInitials(group.lead_name);
-            const stageBadge = getStageBadge(group.lead_status);
             const sentCount = group.reminders.filter((r) => r.status === 'sent').length;
             const totalCount = group.reminders.length;
 
             return (
-              <div
-                key={group.lead_id || group.lead_name}
-                style={{
-                  backgroundColor: '#fff',
-                  borderRadius: '14px',
-                  border: '1px solid #e2e8f0',
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.03)',
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-              >
+              <div key={group.lead_id || group.lead_name} className="sales-card" style={{ overflow: 'hidden' }}>
                 {/* Lead Header */}
                 <div
                   style={{
-                    padding: '1rem 1.25rem',
-                    backgroundColor: '#f8fafc',
-                    borderBottom: '1px solid #e2e8f0',
+                    padding: '0.85rem 1.25rem',
+                    backgroundColor: '#F9FAFB',
+                    borderBottom: '1px solid #E6E9EE',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     flexWrap: 'wrap',
-                    gap: '12px',
+                    gap: '10px',
                   }}
                 >
-                  {/* Left: Avatar + Lead Info */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div
                       style={{
-                        width: '42px',
-                        height: '42px',
+                        width: '34px',
+                        height: '34px',
                         borderRadius: '50%',
-                        backgroundColor: avatarStyle.bg,
-                        color: avatarStyle.color,
+                        backgroundColor: '#E8F6FA',
+                        color: '#1D667C',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontWeight: '800',
-                        fontSize: '0.95rem',
+                        fontWeight: '700',
+                        fontSize: '0.82rem',
                         flexShrink: 0,
                       }}
                     >
                       {initials}
                     </div>
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <strong style={{ fontSize: '1.02rem', color: '#0f172a' }}>
-                          {group.lead_name}
-                        </strong>
-                        <span
-                          style={{
-                            fontSize: '0.72rem',
-                            fontWeight: '700',
-                            backgroundColor: stageBadge.bg,
-                            color: stageBadge.color,
-                            padding: '2px 8px',
-                            borderRadius: '6px',
-                          }}
-                        >
-                          {stageBadge.label}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '0.8rem', color: '#64748b', marginTop: '3px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <strong style={{ fontSize: '0.92rem', color: '#111827' }}>{group.lead_name}</strong>
                         {group.lead_company && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <Building size={12} /> {group.lead_company}
-                          </span>
+                          <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>• {group.lead_company}</span>
                         )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.75rem', color: '#6B7280', marginTop: '2px' }}>
+                        <span className="num">{group.lead_phone}</span>
                         {group.lead_phone && (
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                              <Phone size={12} /> {group.lead_phone}
-                            </span>
-                            <a
-                              href={`tel:${group.lead_phone}`}
-                              style={{ color: '#16a34a', display: 'inline-flex', alignItems: 'center' }}
-                              title="Call"
-                            >
-                              <Phone size={13} />
-                            </a>
-                            <a
-                              href={`https://wa.me/${group.lead_phone.replace(/[^0-9]/g, '')}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{ color: '#16a34a', display: 'inline-flex', alignItems: 'center' }}
-                              title="Open in WhatsApp"
-                            >
-                              <MessageSquare size={13} />
-                            </a>
-                          </div>
+                          <a href={`tel:${group.lead_phone}`} style={{ color: '#2A9CB8', textDecoration: 'none' }}>
+                            <Phone size={11} />
+                          </a>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Right: Cadence Progress Badge */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span
-                      style={{
-                        fontSize: '0.76rem',
-                        fontWeight: '700',
-                        backgroundColor: sentCount === totalCount ? '#ecfdf5' : '#f1f5f9',
-                        color: sentCount === totalCount ? '#16a34a' : '#475569',
-                        padding: '4px 10px',
-                        borderRadius: '20px',
-                        border: '1px solid',
-                        borderColor: sentCount === totalCount ? '#bbf7d0' : '#e2e8f0',
-                      }}
-                    >
-                      {sentCount === totalCount ? '✓ All Reminders Sent' : `${sentCount} of ${totalCount} Reminders Sent`}
-                    </span>
-                  </div>
+                  <span
+                    className="badge-status"
+                    style={{
+                      backgroundColor: sentCount === totalCount ? '#DCFCE7' : '#F1F3F6',
+                      color: sentCount === totalCount ? '#166534' : '#4B5563',
+                      fontSize: '0.72rem',
+                    }}
+                  >
+                    {sentCount === totalCount ? '✓ All Sent' : `${sentCount} / ${totalCount} Sent`}
+                  </span>
                 </div>
 
-                {/* Line-by-Line Reminders for this Lead */}
+                {/* Line Items */}
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   {group.reminders.map((rem, idx) => {
                     const { date, time } = formatDateParts(rem.scheduled_for);
                     const cadenceBadge = getCadenceBadge(rem.day_number);
                     const isSent = rem.status === 'sent';
                     const isDue = rem.status === 'pending' && new Date(rem.scheduled_for).getTime() <= Date.now();
-                    const isWon = rem.lead_status === 'won';
-                    const isLost = rem.lead_status === 'lost';
                     const waUrl = getWhatsAppUrl(rem);
 
                     return (
                       <div
                         key={rem.id}
                         style={{
-                          padding: '0.85rem 1.25rem',
+                          padding: '0.75rem 1.25rem',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           flexWrap: 'wrap',
-                          gap: '12px',
-                          borderBottom: idx < group.reminders.length - 1 ? '1px solid #f1f5f9' : 'none',
-                          backgroundColor: isSent ? '#fff' : isDue ? '#fff5f5' : '#fafbfc',
+                          gap: '10px',
+                          borderBottom: idx < group.reminders.length - 1 ? '1px solid #F1F3F6' : 'none',
+                          backgroundColor: isDue ? '#FFFDF8' : '#FFFFFF',
                         }}
                       >
-                        {/* Cadence + Scheduled Date/Time */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '220px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <span
+                            className="badge-status"
                             style={{
-                              fontSize: '0.74rem',
-                              fontWeight: '700',
                               backgroundColor: cadenceBadge.bg,
                               color: cadenceBadge.color,
-                              padding: '3px 10px',
-                              borderRadius: '6px',
-                              minWidth: '58px',
-                              textAlign: 'center',
+                              fontSize: '0.7rem',
+                              minWidth: '50px',
+                              justifyContent: 'center',
                             }}
                           >
                             {cadenceBadge.label}
                           </span>
                           <div>
-                            <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#1e293b' }}>
+                            <div className="num" style={{ fontSize: '0.82rem', fontWeight: '700', color: '#111827' }}>
                               {date}
                             </div>
-                            <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                            <div className="num" style={{ fontSize: '0.7rem', color: '#6B7280' }}>
                               {time}
                             </div>
                           </div>
                         </div>
 
-                        {/* Status Badge */}
                         <div>
-                          {isWon ? (
-                            <span style={{ fontSize: '0.74rem', fontWeight: '700', color: '#059669', backgroundColor: '#ecfdf5', padding: '3px 9px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
-                              Deal Won • Concluded
-                            </span>
-                          ) : isLost ? (
-                            <span style={{ fontSize: '0.74rem', fontWeight: '700', color: '#dc2626', backgroundColor: '#fef2f2', padding: '3px 9px', borderRadius: '6px' }}>
-                              Deal Lost
-                            </span>
-                          ) : isSent ? (
-                            <span style={{ fontSize: '0.74rem', fontWeight: '700', backgroundColor: '#ecfdf5', color: '#16a34a', padding: '3px 9px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                              <Check size={12} />
-                              <span>Sent by Worker</span>
+                          {isSent ? (
+                            <span className="badge-status" style={{ backgroundColor: '#DCFCE7', color: '#166534', fontSize: '0.7rem' }}>
+                              <Check size={11} /> Sent
                             </span>
                           ) : isDue ? (
-                            <span style={{ fontSize: '0.74rem', fontWeight: '700', backgroundColor: '#fee2e2', color: '#dc2626', padding: '3px 9px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#dc2626' }} />
-                              <span>Due Now</span>
+                            <span className="badge-status" style={{ backgroundColor: '#FEE2E2', color: '#DC2626', fontSize: '0.7rem' }}>
+                              <span className="badge-status-dot" style={{ backgroundColor: '#DC2626' }} /> Due Now
                             </span>
                           ) : (
-                            <span style={{ fontSize: '0.74rem', fontWeight: '700', backgroundColor: '#f1f5f9', color: '#475569', padding: '3px 9px', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                              <Clock size={12} />
-                              <span>Upcoming</span>
+                            <span className="badge-status" style={{ backgroundColor: '#F1F3F6', color: '#4B5563', fontSize: '0.7rem' }}>
+                              <Clock size={11} /> Upcoming
                             </span>
                           )}
                         </div>
 
-                        {/* WhatsApp Action Button */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {isWon ? (
-                            <span style={{ fontSize: '0.72rem', color: '#059669', fontWeight: '600' }}>
-                              ✓ No further actions
-                            </span>
+                        <div>
+                          {isDue ? (
+                            <a
+                              href={waUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="btn-primary-action"
+                              style={{ padding: '0.35rem 0.75rem', fontSize: '0.74rem' }}
+                            >
+                              <Send size={11} /> Send WhatsApp
+                            </a>
                           ) : isSent ? (
                             <a
                               href={waUrl}
                               target="_blank"
                               rel="noreferrer"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                padding: '4px 10px',
-                                borderRadius: '6px',
-                                backgroundColor: '#f0fdf4',
-                                border: '1px solid #bbf7d0',
-                                color: '#16a34a',
-                                textDecoration: 'none',
-                                fontSize: '0.74rem',
-                                fontWeight: '700',
-                              }}
-                              title="Resend WhatsApp message"
+                              className="btn-secondary-action"
+                              style={{ padding: '0.3rem 0.65rem', fontSize: '0.72rem' }}
                             >
-                              <MessageSquare size={12} />
-                              <span>Resend</span>
-                            </a>
-                          ) : isDue ? (
-                            <a
-                              href={waUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                padding: '5px 12px',
-                                borderRadius: '6px',
-                                backgroundColor: '#16a34a',
-                                color: '#fff',
-                                textDecoration: 'none',
-                                fontSize: '0.74rem',
-                                fontWeight: '700',
-                              }}
-                            >
-                              <Send size={12} />
-                              <span>Send Now</span>
+                              <MessageSquare size={11} /> Resend
                             </a>
                           ) : (
-                            <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic' }}>
-                              Auto-sends at scheduled time
-                            </span>
+                            <span style={{ fontSize: '0.72rem', color: '#9CA3AF' }}>Scheduled</span>
                           )}
                         </div>
                       </div>
@@ -885,370 +653,106 @@ export default function SalesRemindersPage() {
           })}
         </div>
       ) : (
-        /* ========================================================================= */
-        /* FLAT TABLE VIEW (Original Full Table)                                    */
-        /* ========================================================================= */
-        <div style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '950px' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#fafbfc', borderBottom: '1px solid #e2e8f0' }}>
-                  <th style={{ padding: '0.85rem 1rem', width: '36px' }}>
-                    <input
-                      type="checkbox"
-                      checked={filteredReminders.length > 0 && selectedIds.length === filteredReminders.length}
-                      onChange={toggleSelectAll}
-                      style={{ cursor: 'pointer', borderRadius: '4px' }}
-                    />
-                  </th>
-                  <th style={{ padding: '0.85rem 1rem', fontSize: '0.72rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Client / Company
-                  </th>
-                  <th style={{ padding: '0.85rem 1rem', fontSize: '0.72rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Cadence
-                  </th>
-                  <th style={{ padding: '0.85rem 1rem', fontSize: '0.72rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Scheduled For
-                  </th>
-                  <th style={{ padding: '0.85rem 1rem', fontSize: '0.72rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Status
-                  </th>
-                  <th style={{ padding: '0.85rem 1rem', fontSize: '0.72rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Current Stage
-                  </th>
-                  <th style={{ padding: '0.85rem 1rem', fontSize: '0.72rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    WhatsApp Action
-                  </th>
-                  <th style={{ padding: '0.85rem 1rem', width: '40px', textAlign: 'right' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredReminders.map((reminder) => {
-                  const now = Date.now();
-                  const isDue = reminder.status === 'pending' && new Date(reminder.scheduled_for).getTime() <= now;
-                  const isSent = reminder.status === 'sent';
+        /* Flat Table View (Component 3.2) */
+        <div className="surfsync-table-container">
+          <table className="surfsync-table">
+            <thead>
+              <tr>
+                <th style={{ width: '36px', textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={filteredReminders.length > 0 && selectedIds.length === filteredReminders.length}
+                    onChange={toggleSelectAll}
+                    style={{ cursor: 'pointer' }}
+                  />
+                </th>
+                <th>Client / Contact</th>
+                <th>Cadence</th>
+                <th>Scheduled Date</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredReminders.map((reminder) => {
+                const now = Date.now();
+                const isDue = reminder.status === 'pending' && new Date(reminder.scheduled_for).getTime() <= now;
+                const isSent = reminder.status === 'sent';
+                const cadenceBadge = getCadenceBadge(reminder.day_number);
+                const { date, time } = formatDateParts(reminder.scheduled_for);
+                const waUrl = getWhatsAppUrl(reminder);
 
-                  const avatarStyle = getAvatarStyle(reminder.lead_name || 'L');
-                  const initials = getInitials(reminder.lead_name || 'L');
-
-                  const cadenceBadge = getCadenceBadge(reminder.day_number);
-                  const stageBadge = getStageBadge(reminder.lead_status);
-                  const { date, time } = formatDateParts(reminder.scheduled_for);
-                  const waUrl = getWhatsAppUrl(reminder);
-
-                  return (
-                    <tr
-                      key={reminder.id}
-                      style={{
-                        borderBottom: '1px solid #f1f5f9',
-                        backgroundColor: selectedIds.includes(reminder.id) ? '#f0fdfa' : '#fff',
-                        transition: 'background-color 0.1s',
-                      }}
-                    >
-                      <td style={{ padding: '0.85rem 1rem' }}>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(reminder.id)}
-                          onChange={() => toggleSelectRow(reminder.id)}
-                          style={{ cursor: 'pointer', borderRadius: '4px' }}
-                        />
-                      </td>
-
-                      <td style={{ padding: '0.85rem 1rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div
-                            style={{
-                              width: '34px',
-                              height: '34px',
-                              borderRadius: '50%',
-                              backgroundColor: avatarStyle.bg,
-                              color: avatarStyle.color,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontWeight: '800',
-                              fontSize: '0.82rem',
-                              flexShrink: 0,
-                            }}
-                          >
-                            {initials}
-                          </div>
-                          <div>
-                            <strong style={{ fontSize: '0.88rem', color: '#0f172a', display: 'block', lineHeight: 1.25 }}>
-                              {reminder.lead_name}
-                            </strong>
-                            {reminder.lead_company && (
-                              <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '2px' }}>
-                                {reminder.lead_company}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-
-                      <td style={{ padding: '0.85rem 1rem' }}>
-                        <span
-                          style={{
-                            fontSize: '0.74rem',
-                            fontWeight: '700',
-                            backgroundColor: cadenceBadge.bg,
-                            color: cadenceBadge.color,
-                            padding: '3px 9px',
-                            borderRadius: '6px',
-                            display: 'inline-block',
-                          }}
-                        >
-                          {cadenceBadge.label}
+                return (
+                  <tr key={reminder.id}>
+                    <td style={{ textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(reminder.id)}
+                        onChange={() => toggleSelectRow(reminder.id)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: '700', color: '#111827' }}>{reminder.lead_name}</div>
+                      <div style={{ fontSize: '0.74rem', color: '#6B7280' }}>
+                        {reminder.lead_company ? `${reminder.lead_company} • ` : ''}
+                        <span className="num">{reminder.lead_phone}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="badge-status" style={{ backgroundColor: cadenceBadge.bg, color: cadenceBadge.color, fontSize: '0.68rem' }}>
+                        {cadenceBadge.label}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="num" style={{ fontWeight: '700', color: '#111827' }}>{date}</div>
+                      <div className="num" style={{ fontSize: '0.72rem', color: '#6B7280' }}>{time}</div>
+                    </td>
+                    <td>
+                      {isSent ? (
+                        <span className="badge-status" style={{ backgroundColor: '#DCFCE7', color: '#166534', fontSize: '0.7rem' }}>
+                          ✓ Sent
                         </span>
-                      </td>
-
-                      <td style={{ padding: '0.85rem 1rem' }}>
-                        <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#1e293b' }}>
-                          {date}
-                        </div>
-                        <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '1px' }}>
-                          {time}
-                        </div>
-                      </td>
-
-                      <td style={{ padding: '0.85rem 1rem' }}>
-                        {isSent ? (
-                          <span
-                            style={{
-                              fontSize: '0.74rem',
-                              fontWeight: '700',
-                              backgroundColor: '#ecfdf5',
-                              color: '#16a34a',
-                              padding: '3px 9px',
-                              borderRadius: '6px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                          >
-                            ✓ Sent
-                          </span>
-                        ) : isDue ? (
-                          <span
-                            style={{
-                              fontSize: '0.74rem',
-                              fontWeight: '700',
-                              backgroundColor: '#fee2e2',
-                              color: '#dc2626',
-                              padding: '3px 9px',
-                              borderRadius: '6px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px',
-                            }}
-                          >
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#dc2626' }} />
-                            <span>Due Now</span>
-                          </span>
-                        ) : (
-                          <span
-                            style={{
-                              fontSize: '0.74rem',
-                              fontWeight: '700',
-                              backgroundColor: '#f1f5f9',
-                              color: '#475569',
-                              padding: '3px 9px',
-                              borderRadius: '6px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                          >
-                            ✓ Upcoming
-                          </span>
-                        )}
-                      </td>
-
-                      <td style={{ padding: '0.85rem 1rem' }}>
-                        <span
-                          style={{
-                            fontSize: '0.74rem',
-                            fontWeight: '700',
-                            backgroundColor: stageBadge.bg,
-                            color: stageBadge.color,
-                            padding: '3px 9px',
-                            borderRadius: '6px',
-                            display: 'inline-block',
-                          }}
-                        >
-                          {stageBadge.label}
+                      ) : isDue ? (
+                        <span className="badge-status" style={{ backgroundColor: '#FEE2E2', color: '#DC2626', fontSize: '0.7rem' }}>
+                          Due Now
                         </span>
-                      </td>
-
-                      <td style={{ padding: '0.85rem 1rem' }}>
-                        {reminder.lead_status === 'won' ? (
-                          <div
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              padding: '5px 12px',
-                              borderRadius: '6px',
-                              backgroundColor: '#ecfdf5',
-                              border: '1px solid #a7f3d0',
-                              color: '#059669',
-                              fontSize: '0.76rem',
-                              fontWeight: '700',
-                            }}
-                          >
-                            <Trophy size={13} color="#059669" />
-                            <span>Deal Won • Concluded</span>
-                          </div>
-                        ) : reminder.lead_status === 'lost' ? (
-                          <div
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              padding: '5px 10px',
-                              borderRadius: '6px',
-                              backgroundColor: '#fef2f2',
-                              color: '#dc2626',
-                              fontSize: '0.74rem',
-                              fontWeight: '700',
-                            }}
-                          >
-                            Deal Closed / Lost
-                          </div>
-                        ) : isSent ? (
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                            <span
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                fontSize: '0.74rem',
-                                color: '#16a34a',
-                                fontWeight: '700',
-                              }}
-                            >
-                              <Check size={13} />
-                              <span>Sent by Worker</span>
-                            </span>
-                            <a
-                              href={waUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '4px 8px',
-                                borderRadius: '4px',
-                                backgroundColor: '#f0fdf4',
-                                border: '1px solid #bbf7d0',
-                                color: '#16a34a',
-                                textDecoration: 'none',
-                                fontSize: '0.72rem',
-                                fontWeight: '700',
-                              }}
-                              title="Resend WhatsApp message"
-                            >
-                              <MessageSquare size={11} />
-                              <span>Resend</span>
-                            </a>
-                          </div>
-                        ) : (
-                          <a
-                            href={waUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              backgroundColor: '#16a34a',
-                              color: '#fff',
-                              textDecoration: 'none',
-                              padding: '7px 14px',
-                              borderRadius: '6px',
-                              fontSize: '0.78rem',
-                              fontWeight: '700',
-                              boxShadow: '0 1px 2px rgba(22, 163, 74, 0.2)',
-                              transition: 'opacity 0.15s',
-                            }}
-                          >
-                            <MessageSquare size={14} color="#fff" />
-                            <span>Send WhatsApp Follow-up</span>
-                          </a>
-                        )}
-                      </td>
-
-                      <td style={{ padding: '0.85rem 1rem', textAlign: 'right', position: 'relative' }}>
-                        <button
-                          type="button"
-                          onClick={() => setMenuId(menuId === reminder.id ? null : reminder.id)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#94a3b8',
-                            cursor: 'pointer',
-                            padding: '4px',
-                          }}
-                          title="Options"
+                      ) : (
+                        <span className="badge-status" style={{ backgroundColor: '#F1F3F6', color: '#4B5563', fontSize: '0.7rem' }}>
+                          Upcoming
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      {isDue ? (
+                        <a
+                          href={waUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn-primary-action"
+                          style={{ padding: '0.3rem 0.65rem', fontSize: '0.72rem' }}
                         >
-                          <MoreHorizontal size={16} />
-                        </button>
-
-                        {menuId === reminder.id && (
-                          <div
-                            style={{
-                              position: 'absolute',
-                              right: '12px',
-                              top: '32px',
-                              zIndex: 100,
-                              backgroundColor: '#fff',
-                              borderRadius: '8px',
-                              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-                              border: '1px solid #e2e8f0',
-                              padding: '4px',
-                              width: '160px',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <a
-                              href={waUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{
-                                display: 'block',
-                                padding: '6px 10px',
-                                fontSize: '0.75rem',
-                                color: '#16a34a',
-                                textDecoration: 'none',
-                                fontWeight: '700',
-                              }}
-                            >
-                              Open in WhatsApp
-                            </a>
-                            {reminder.lead_phone && (
-                              <a
-                                href={`tel:${reminder.lead_phone}`}
-                                style={{
-                                  display: 'block',
-                                  padding: '6px 10px',
-                                  fontSize: '0.75rem',
-                                  color: '#334155',
-                                  textDecoration: 'none',
-                                  fontWeight: '600',
-                                }}
-                              >
-                                Call Client
-                              </a>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                          <Send size={11} /> Send
+                        </a>
+                      ) : isSent ? (
+                        <a
+                          href={waUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn-secondary-action"
+                          style={{ padding: '0.3rem 0.65rem', fontSize: '0.72rem' }}
+                        >
+                          Resend
+                        </a>
+                      ) : (
+                        <span style={{ fontSize: '0.72rem', color: '#9CA3AF' }}>Queued</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

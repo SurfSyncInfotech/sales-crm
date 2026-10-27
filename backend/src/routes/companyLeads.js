@@ -5,6 +5,7 @@ const path = require('path');
 const XLSX = require('xlsx');
 const pool = require('../config/db');
 const mailer = require('../services/mailer');
+const notif = require('../services/notificationService');
 const { authRequired, requireCompanyUser } = require('../middleware/auth');
 const { createLeadFromPayload, parseTags } = require('../services/leadIngest');
 const { setLeadStage, logActivity } = require('../services/pipeline');
@@ -1005,6 +1006,9 @@ router.post('/:id/send-quotation-email', async (req, res) => {
       meta: { subject, pdfUrl, to: to.trim() },
       actorId: req.user.id,
     });
+
+    // 5. Notify assigned salesperson
+    notif.notifyQuotationSent(lead, lead.claimed_by || lead.assigned_to).catch(console.error);
 
     res.json({ ok: true, message: 'Quotation email sent successfully with attached PDF!' });
   } catch (err) {

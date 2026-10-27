@@ -15,6 +15,10 @@ const planRoutes = require('./routes/plans');
 const paymentRoutes = require('./routes/payments');
 const dashboardRoutes = require('./routes/dashboard');
 const salesRoutes = require('./routes/sales');
+const companyWabaRoutes = require('./routes/companyWaba');
+const adminWabaRoutes = require('./routes/adminWaba');
+const notificationsRoutes = require('./routes/notifications');
+const { ensureWabaSchema } = require('./migrate_waba');
 
 async function start() {
   try {
@@ -24,6 +28,7 @@ async function start() {
     const { ensureCrmSchema } = require('./migrate_crm');
     await ensureFacebookSchema({ silent: true });
     await ensureCrmSchema({ silent: true });
+    await ensureWabaSchema({ silent: true });
   } catch (err) {
     console.error('Auto SQL migrate failed:', err.message);
     process.exit(1);
@@ -41,21 +46,33 @@ async function start() {
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
   app.use('/uploads', express.static(uploadsDir));
 
-  app.get('/api/health', (_req, res) => {
+  app.get(['/api/health', '/health'], (_req, res) => {
     res.json({ ok: true, product: 'SurfSync Studio' });
   });
 
-  app.use('/api/auth', authRoutes);
-  app.use('/api/companies', companyRoutes);
-  app.use('/api/company/leads', companyLeadsRoutes);
-  app.use('/api/company/crm', crmRoutes);
-  app.use('/api/company/whatsapp', companyWhatsappRoutes);
-  app.use('/api/company', companyPortalRoutes);
-  app.use('/api/sales', salesRoutes);
-  app.use('/api/public/leads', publicLeadsRoutes);
-  app.use('/api/plans', planRoutes);
-  app.use('/api/payments', paymentRoutes);
-  app.use('/api/dashboard', dashboardRoutes);
+  // Mount routes with both /api prefix and direct root prefix
+  // (Prevents 404 whether Nginx proxy_pass strips /api/ or preserves it, or if client calls with/without /api)
+  const mountRoutes = [
+    { prefix: '/auth', handler: authRoutes },
+    { prefix: '/companies', handler: companyRoutes },
+    { prefix: '/company/leads', handler: companyLeadsRoutes },
+    { prefix: '/company/crm', handler: crmRoutes },
+    { prefix: '/company/whatsapp', handler: companyWhatsappRoutes },
+    { prefix: '/company/waba', handler: companyWabaRoutes },
+    { prefix: '/admin/waba', handler: adminWabaRoutes },
+    { prefix: '/company', handler: companyPortalRoutes },
+    { prefix: '/sales', handler: salesRoutes },
+    { prefix: '/notifications', handler: notificationsRoutes },
+    { prefix: '/public/leads', handler: publicLeadsRoutes },
+    { prefix: '/plans', handler: planRoutes },
+    { prefix: '/payments', handler: paymentRoutes },
+    { prefix: '/dashboard', handler: dashboardRoutes },
+  ];
+
+  mountRoutes.forEach(({ prefix, handler }) => {
+    app.use(`/api${prefix}`, handler);
+    app.use(prefix, handler);
+  });
 
   app.use((err, _req, res, _next) => {
     console.error(err);

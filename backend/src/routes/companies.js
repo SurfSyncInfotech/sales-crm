@@ -173,8 +173,12 @@ router.put('/:id', async (req, res) => {
   try {
     const {
       name,
+      slug,
       email,
       phone,
+      admin_name,
+      admin_email,
+      admin_password,
       industry,
       city,
       state,
@@ -187,9 +191,22 @@ router.put('/:id', async (req, res) => {
       notes,
     } = req.body;
 
+    let cleanSlug = null;
+    if (slug) {
+      cleanSlug = slugify(slug);
+      const [existing] = await pool.query(
+        'SELECT id FROM companies WHERE slug = ? AND id != ?',
+        [cleanSlug, req.params.id]
+      );
+      if (existing.length > 0) {
+        return res.status(400).json({ message: `Company slug "${cleanSlug}" is already taken by another company` });
+      }
+    }
+
     await pool.query(
       `UPDATE companies SET
         name = COALESCE(?, name),
+        slug = COALESCE(?, slug),
         email = COALESCE(?, email),
         phone = COALESCE(?, phone),
         industry = COALESCE(?, industry),
@@ -205,6 +222,7 @@ router.put('/:id', async (req, res) => {
        WHERE id = ?`,
       [
         name ?? null,
+        cleanSlug ?? null,
         email ? email.trim().toLowerCase() : null,
         phone ?? null,
         industry ?? null,
@@ -220,6 +238,33 @@ router.put('/:id', async (req, res) => {
         req.params.id,
       ]
     );
+
+    if (admin_name || admin_email || admin_password) {
+      const [adminUser] = await pool.query(
+        "SELECT id FROM users WHERE company_id = ? AND role = 'company_admin' ORDER BY id ASC LIMIT 1",
+        [req.params.id]
+      );
+      if (adminUser && adminUser.length > 0) {
+        let pwdHash = null;
+        if (admin_password && String(admin_password).trim().length >= 6) {
+          const bcrypt = require('bcryptjs');
+          pwdHash = await bcrypt.hash(String(admin_password).trim(), 10);
+        }
+        await pool.query(
+          `UPDATE users SET
+            name = COALESCE(?, name),
+            email = COALESCE(?, email),
+            password_hash = COALESCE(?, password_hash)
+           WHERE id = ?`,
+          [
+            admin_name ? admin_name.trim() : null,
+            admin_email ? admin_email.trim().toLowerCase() : null,
+            pwdHash,
+            adminUser[0].id,
+          ]
+        );
+      }
+    }
 
     await pool.query(
       `INSERT INTO company_activity_logs (company_id, action, details, performed_by)

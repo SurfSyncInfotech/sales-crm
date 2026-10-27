@@ -1,4 +1,7 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5010/api';
+const rawApiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5010/api').trim();
+export const API_BASE = rawApiUrl.replace(/\/+$/, '').endsWith('/api')
+  ? rawApiUrl.replace(/\/+$/, '')
+  : `${rawApiUrl.replace(/\/+$/, '')}/api`;
 
 export const TOKEN_KEYS = {
   superadmin: 'ss_token_superadmin',
@@ -99,6 +102,19 @@ export const paymentsApi = {
   markPaid: (id) => api(`/payments/${id}/status`, { method: 'PATCH', body: { status: 'paid' }, portal: 'superadmin' }),
 };
 
+export const adminWabaApi = {
+  overview: () => api('/admin/waba/overview', { portal: 'superadmin' }),
+  requests: () => api('/admin/waba/requests', { portal: 'superadmin' }),
+  accounts: () => api('/admin/waba/accounts', { portal: 'superadmin' }),
+  createAccount: (body) => api('/admin/waba/create-account', { method: 'POST', body, portal: 'superadmin' }),
+  recharge: (body) => api('/admin/waba/recharge', { method: 'POST', body, portal: 'superadmin' }),
+  changeStatus: (body) => api('/admin/waba/change-status', { method: 'POST', body, portal: 'superadmin' }),
+  updateExpiry: (body) => api('/admin/waba/update-expiry', { method: 'POST', body, portal: 'superadmin' }),
+  checkLive: (wabanumber) => api(`/admin/waba/check-live?wabanumber=${encodeURIComponent(wabanumber)}`, { portal: 'superadmin' }),
+  recharges: () => api('/admin/waba/recharges', { portal: 'superadmin' }),
+  migrateTemplate: (body) => api('/admin/waba/template-migration', { method: 'POST', body, portal: 'superadmin' }),
+};
+
 export const companyPortalApi = {
   dashboard: () => api('/company/dashboard', { portal: 'company' }),
   team: () => api('/company/team', { portal: 'company' }),
@@ -106,6 +122,8 @@ export const companyPortalApi = {
   addMember: (body) => api('/company/team', { method: 'POST', body, portal: 'company' }),
   setMemberStatus: (id, is_active) =>
     api(`/company/team/${id}/status`, { method: 'PATCH', body: { is_active }, portal: 'company' }),
+  updateMember: (id, body) =>
+    api(`/company/team/${id}`, { method: 'PATCH', body, portal: 'company' }),
   updateMemberDomain: (id, domain) =>
     api(`/company/team/${id}/domain`, { method: 'PATCH', body: { domain }, portal: 'company' }),
   impersonateSales: (memberId) =>
@@ -186,6 +204,29 @@ export const companyPortalApi = {
     api(`/company/leads/${leadId}/send-quotation-email`, { method: 'POST', body, portal: 'company' }),
   sendDemoEmail: (leadId, body) =>
     api(`/company/leads/${leadId}/send-demo-email`, { method: 'POST', body, portal: 'company' }),
+  // WABA / WhatsApp Business API Suite
+  wabaStatus: () => api('/company/waba/status', { portal: 'company' }),
+  wabaRazorpayConfig: () => api('/company/waba/razorpay-config', { portal: 'company' }),
+  wabaCreateOrder: (body) => api('/company/waba/create-order', { method: 'POST', body, portal: 'company' }),
+  wabaVerifyPayment: (body) => api('/company/waba/verify-payment', { method: 'POST', body, portal: 'company' }),
+  wabaConnectExisting: (body) => api('/company/waba/connect-existing', { method: 'POST', body, portal: 'company' }),
+  wabaDisconnect: () => api('/company/waba/disconnect', { method: 'POST', portal: 'company' }),
+  wabaRequestActivation: (body) => api('/company/waba/request-activation', { method: 'POST', body, portal: 'company' }),
+  wabaRecharge: (body) => api('/company/waba/recharge', { method: 'POST', body, portal: 'company' }),
+  wabaRecharges: () => api('/company/waba/recharges', { portal: 'company' }),
+  wabaQualityReport: () => api('/company/waba/quality-report', { portal: 'company' }),
+  wabaTemplates: () => api('/company/waba/templates', { portal: 'company' }),
+  wabaCampaigns: () => api('/company/waba/campaigns', { portal: 'company' }),
+  wabaCreateCampaign: (body) => api('/company/waba/campaigns', { method: 'POST', body, portal: 'company' }),
+  wabaMedia: () => api('/company/waba/media', { portal: 'company' }),
+  wabaUploadMedia: (body) => api('/company/waba/media', { method: 'POST', body, portal: 'company' }),
+  wabaDailyReport: () => api('/company/waba/daily-report', { portal: 'company' }),
+  wabaChatLogs: () => api('/company/waba/chat-logs', { portal: 'company' }),
+  wabaConversations: () => api('/company/waba/conversations', { portal: 'company' }),
+  wabaConversationMessages: (phone) => api(`/company/waba/conversations/${encodeURIComponent(phone)}/messages`, { portal: 'company' }),
+  wabaSendMessage: (phone, body) => api(`/company/waba/conversations/${encodeURIComponent(phone)}/send`, { method: 'POST', body, portal: 'company' }),
+  wabaUnsubscribes: () => api('/company/waba/unsubscribes', { portal: 'company' }),
+  wabaAddUnsubscribe: (body) => api('/company/waba/unsubscribes', { method: 'POST', body, portal: 'company' }),
 };
 
 export const salesApi = {
@@ -215,6 +256,21 @@ export const salesAuthApi = {
     api('/auth/sales/forgot-password/verify-otp', { method: 'POST', body: { mobile, otp } }),
   resetPassword: (verifyToken, newPassword) =>
     api('/auth/sales/forgot-password/reset-password', { method: 'POST', body: { verifyToken, newPassword } }),
+};
+
+export const companyAuthApi = {
+  sendForgotOtp: (mobile, slug) =>
+    api('/auth/company/forgot-password/send-otp', { method: 'POST', body: { mobile, slug } }),
+  verifyForgotOtp: (mobile, otp, slug) =>
+    api('/auth/company/forgot-password/verify-otp', { method: 'POST', body: { mobile, otp, slug } }),
+  resetPassword: (verifyToken, newPassword) =>
+    api('/auth/company/forgot-password/reset-password', { method: 'POST', body: { verifyToken, newPassword } }),
+};
+
+export const notificationsApi = {
+  list: (portal) => api('/notifications', { portal }),
+  markAsRead: (id, portal) => api(`/notifications/${id}/read`, { method: 'PATCH', portal }),
+  markAllAsRead: (portal) => api('/notifications/read-all', { method: 'POST', portal }),
 };
 
 export const companyApi = companyPortalApi;

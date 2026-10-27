@@ -51,7 +51,7 @@ router.get('/dashboard', async (req, res) => {
 router.get('/team', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.email, u.role, u.is_active, u.created_at,
+      `SELECT u.id, u.name, u.email, u.agent_phone, u.role, u.is_active, u.created_at,
               d.name AS domain_name,
               d.id AS domain_id
        FROM users u
@@ -87,7 +87,7 @@ router.post('/team', async (req, res) => {
       return res.status(403).json({ message: 'Only company admins can add salespersons' });
     }
 
-    const { name, email, password, domain } = req.body;
+    const { name, email, password, domain, phone, agent_phone } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Name, email and password are required' });
     }
@@ -95,6 +95,8 @@ router.post('/team', async (req, res) => {
     if (password.length < 6) {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
     }
+
+    const cleanPhone = (phone || agent_phone) ? String(phone || agent_phone).trim() : null;
 
     const [[planInfo]] = await pool.query(
       `SELECT p.max_salespersons
@@ -117,9 +119,9 @@ router.post('/team', async (req, res) => {
 
     const hash = await bcrypt.hash(password, 10);
     const [result] = await pool.query(
-      `INSERT INTO users (name, email, password_hash, role, company_id, is_active)
-       VALUES (?, ?, ?, 'salesperson', ?, 1)`,
-      [name.trim(), email.trim().toLowerCase(), hash, req.user.company_id]
+      `INSERT INTO users (name, email, password_hash, role, company_id, agent_phone, login_password, is_active)
+       VALUES (?, ?, ?, 'salesperson', ?, ?, ?, 1)`,
+      [name.trim(), email.trim().toLowerCase(), hash, req.user.company_id, cleanPhone, password]
     );
 
     if (domain && String(domain).trim()) {
@@ -208,6 +210,107 @@ router.patch('/team/:id/domain', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Failed to update domain' });
+  }
+});
+
+router.patch('/team/:id', async (req, res) => {
+  try {
+    if (req.user.role !== 'company_admin') {
+      return res.status(403).json({ message: 'Only company admins can edit salesperson details' });
+    }
+
+    const userId = Number(req.params.id);
+    const companyId = req.user.company_id;
+    const { name, email, phone, agent_phone, domain, password } = req.body || {};
+
+    // Verify member exists and belongs to company
+    const [rows] = await pool.query(
+      'SELECT id, role FROM users WHERE id = ? AND company_id = ? LIMIT 1',
+      [userId, companyId]
+    );
+    const member = rows[0];
+    if (!member) {
+      return res.status(404).json({ message: 'Salesperson not found' });
+    }
+
+    // Prepare fields to update
+    const updates = [];
+    const values = [];
+
+    if (name && String(name).trim()) {
+      updates.push('name = ?');
+      values.push(String(name).trim());
+    }
+
+    if (email && String(email).trim()) {
+      const cleanEmail = String(email).trim().toLowerCase();
+      // Check for email collision with other users
+      const [emailCheck] = await pool.query(
+        'SELECT id FROM users WHERE email = ? AND id != ? LIMIT 1',
+        [cleanEmail, userId]
+      );
+      if (emailCheck.length > 0) {
+        return res.status(400).json({ message: 'Another user already uses this email address' });
+      }
+      updates.push('email = ?');
+      values.push(cleanEmail);
+    }
+
+    if (phone !== undefined || agent_phone !== undefined) {
+      const cleanPhone = String(phone || agent_phone || '').trim() || null;
+      updates.push('agent_phone = ?');
+      values.push(cleanPhone);
+    }
+
+    if (password && String(password).trim().length >= 6) {
+      const hash = await bcrypt.hash(String(password).trim(), 10);
+      updates.push('password_hash = ?');
+      values.push(hash);
+      updates.push('login_password = ?');
+      values.push(String(password).trim());
+    }
+
+    if (updates.length > 0) {
+      values.push(userId, companyId);
+      await pool.query(
+        `UPDATE users SET ${updates.join(', ')} WHERE id = ? AND company_id = ?`,
+        values
+      );
+    }
+
+    // Update domain if provided
+    if (domain !== undefined) {
+      if (!domain || !String(domain).trim()) {
+        await pool.query('DELETE FROM user_domains WHERE user_id = ? AND company_id = ?', [userId, companyId]);
+      } else {
+        const domName = String(domain).trim();
+        const domSlug = domName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        const [existingDom] = await pool.query(
+          'SELECT id FROM domains WHERE company_id = ? AND (name = ? OR slug = ?) LIMIT 1',
+          [companyId, domName, domSlug]
+        );
+        let targetDomainId;
+        if (existingDom[0]) {
+          targetDomainId = existingDom[0].id;
+        } else {
+          const [newDom] = await pool.query(
+            'INSERT INTO domains (company_id, name, slug, is_default, is_active) VALUES (?, ?, ?, 0, 1)',
+            [companyId, domName, domSlug]
+          );
+          targetDomainId = newDom.insertId;
+        }
+        await pool.query('DELETE FROM user_domains WHERE user_id = ? AND company_id = ?', [userId, companyId]);
+        await pool.query(
+          'INSERT INTO user_domains (user_id, domain_id, company_id) VALUES (?, ?, ?)',
+          [userId, targetDomainId, companyId]
+        );
+      }
+    }
+
+    res.json({ message: 'Salesperson details updated successfully' });
+  } catch (err) {
+    console.error('Failed to update team member:', err);
+    res.status(500).json({ message: 'Failed to update salesperson details' });
   }
 });
 

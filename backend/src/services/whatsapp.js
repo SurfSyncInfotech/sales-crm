@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const pinbot = require('./pinbot');
 const { logActivity } = require('./pipeline');
+const notif = require('./notificationService');
 
 const OPT_OUT_WORDS = new Set(['stop', 'unsubscribe', 'optout', 'opt out', 'cancel']);
 
@@ -270,6 +271,7 @@ async function handleWebhook(companyId, body) {
             await pool.query('UPDATE leads SET opted_out = 1 WHERE id = ?', [lead.id]);
             await logActivity({ companyId, leadId: lead.id, type: 'opt_out', summary: 'Lead opted out of WhatsApp' });
           }
+          notif.notifyWhatsAppReply(lead, text).catch(console.error);
           result.inbound.push({ lead_id: lead.id, wa_message_id: message.id });
         }
       }
