@@ -88,6 +88,34 @@ async function autoAssignLead(lead, { payload = {}, sourceSlug = null } = {}) {
     });
 
     if (!result) {
+      // Fallback: Auto-assign round-robin to active salesperson in company if no domain configured
+      const [salespeople] = await pool.query(
+        `SELECT u.id, u.name,
+                (SELECT COUNT(*) FROM leads l
+                   LEFT JOIN pipeline_stages ps ON ps.id = l.stage_id
+                  WHERE l.company_id = u.company_id AND l.assigned_to = u.id
+                    AND COALESCE(ps.kind, 'open') = 'open') AS open_leads
+         FROM users u
+         WHERE u.company_id = ? AND u.is_active = 1 AND u.role = 'salesperson'
+         ORDER BY open_leads ASC, u.id ASC
+         LIMIT 1`,
+        [companyId]
+      );
+
+      if (salespeople[0]) {
+        const fallbackAssignee = salespeople[0];
+        await pool.query('UPDATE leads SET assigned_to = ? WHERE id = ?', [fallbackAssignee.id, lead.id]);
+        await logActivity({
+          companyId,
+          leadId: lead.id,
+          type: 'assigned',
+          summary: `Auto-assigned to ${fallbackAssignee.name} (General round-robin)`,
+          meta: { user_id: fallbackAssignee.id },
+        });
+        notif.notifyLeadAssigned({ ...lead, company_id: companyId }, fallbackAssignee).catch(console.error);
+        return { assigned: true, user_id: fallbackAssignee.id, user_name: fallbackAssignee.name };
+      }
+
       await logActivity({
         companyId,
         leadId: lead.id,

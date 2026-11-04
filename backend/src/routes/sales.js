@@ -1,4 +1,5 @@
 const express = require('express');
+const XLSX = require('xlsx');
 const pool = require('../config/db');
 const { authRequired, requireCompanyUser } = require('../middleware/auth');
 const notif = require('../services/notificationService');
@@ -7,10 +8,10 @@ const router = express.Router();
 
 router.use(authRequired, requireCompanyUser);
 
-// Middleware to ensure user is salesperson or company_admin
+// Middleware to ensure user belongs to company
 function salespersonOrAdmin(req, res, next) {
-  if (!['salesperson', 'company_admin'].includes(req.user.role)) {
-    return res.status(403).json({ message: 'Access denied: Sales CRM only' });
+  if (!req.user?.company_id) {
+    return res.status(403).json({ message: 'Access denied: Company users only' });
   }
   next();
 }
@@ -243,6 +244,10 @@ router.get('/feedbacks', async (req, res) => {
          l.email AS lead_email,
          l.lead_company,
          l.status AS current_lead_status,
+         l.is_transferred,
+         l.transferred_from_name,
+         l.transferred_at,
+         l.claimed_by,
          u.name AS salesperson_name
        FROM lead_feedbacks lf
        JOIN leads l ON l.id = lf.lead_id
@@ -352,10 +357,153 @@ router.post('/leads', async (req, res) => {
  * GET /api/sales/pipeline
  * Fetch all leads grouped into pipeline columns
  */
+/**
+ * GET /api/sales/pipeline/export
+ * Export pipeline leads to Excel (.xlsx) file
+ */
+router.get('/pipeline/export', async (req, res) => {
+  try {
+    const companyId = req.user.company_id;
+    const userId = req.user.id;
+    const { campaign } = req.query;
+
+    const whereClauses = [
+      'l.company_id = ?',
+      "(l.claimed_by IS NULL OR l.claimed_by = 0 OR l.claimed_by = ? OR ? = 'company_admin')",
+    ];
+    const params = [companyId, userId, req.user.role];
+
+    if (campaign && campaign !== 'all') {
+      if (campaign === 'Direct WhatsApp' || campaign === 'unassigned') {
+        whereClauses.push('(l.campaign IS NULL OR TRIM(l.campaign) = "")');
+      } else {
+        whereClauses.push('l.campaign = ?');
+        params.push(campaign);
+      }
+    }
+
+    const [rows] = await pool.query(
+      `SELECT 
+         l.id,
+         l.lead_code,
+         l.name,
+         l.phone,
+         l.email,
+         l.lead_company,
+         l.status,
+         l.deal_value,
+         l.campaign,
+         l.notes,
+         l.lead_date,
+         l.created_at,
+         u.name AS claimed_by_name,
+         u.email AS claimed_by_email,
+         (SELECT r.day_number FROM lead_reminders r WHERE r.lead_id = l.id AND r.status = 'pending' ORDER BY r.scheduled_for ASC LIMIT 1) AS next_reminder_day
+       FROM leads l
+       LEFT JOIN users u ON u.id = l.claimed_by
+       WHERE ${whereClauses.join(' AND ')}
+       ORDER BY COALESCE(l.lead_date, l.created_at) DESC, l.id DESC LIMIT 3000`,
+      params
+    );
+
+    const STAGE_LABELS = {
+      new_pool: 'New Pool',
+      new: 'New Pool',
+      claimed: 'Claimed Leads',
+      contacted: 'Contacted Leads',
+      demo_requested: 'Demo Requested',
+      interested: 'Interested / Qualified',
+      qualified: 'Interested / Qualified',
+      followup: 'Follow-up Cadence',
+      quotation_requested: 'Quotation Requested',
+      quotation_sent: 'Quotation Sent',
+      won: 'Deals Won',
+      lost: 'Lost Deals',
+      not_interested: 'Not Interested',
+    };
+
+    const exportData = rows.map((r, idx) => {
+      let stageKey = r.status;
+      if (!r.claimed_by_name) {
+        stageKey = 'new_pool';
+      } else if (stageKey === 'new' || stageKey === 'claimed') {
+        stageKey = 'claimed';
+      }
+      const stageName = STAGE_LABELS[stageKey] || (stageKey ? stageKey.toUpperCase() : 'NEW POOL');
+
+      return {
+        'S.No': idx + 1,
+        'Lead Code': r.lead_code || `LEAD-${r.id}`,
+        'Client / Lead Name': r.name || 'Unnamed Lead',
+        'Phone Number': r.phone ? (String(r.phone).startsWith('+') ? r.phone : `+${r.phone}`) : '',
+        'Email Address': r.email || '',
+        'Company / Organization': r.lead_company || '',
+        'Pipeline Stage': stageName,
+        'Deal Value (INR)': r.deal_value ? Number(r.deal_value) : 0,
+        'Assigned Sales Rep': r.claimed_by_name || 'Unclaimed / Open Pool',
+        'Sales Rep Email': r.claimed_by_email || '',
+        'Next Reminder Day': r.next_reminder_day ? `Day ${r.next_reminder_day}` : 'None',
+        'Campaign': r.campaign || '',
+        'Lead Date': r.lead_date ? new Date(r.lead_date).toLocaleDateString('en-IN') : (r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : ''),
+        'Created At': r.created_at ? new Date(r.created_at).toLocaleString('en-IN') : '',
+        'Notes': r.notes || '',
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    worksheet['!cols'] = [
+      { wch: 6 },  // S.No
+      { wch: 14 }, // Lead Code
+      { wch: 24 }, // Client Name
+      { wch: 18 }, // Phone
+      { wch: 24 }, // Email
+      { wch: 24 }, // Company
+      { wch: 22 }, // Pipeline Stage
+      { wch: 16 }, // Deal Value
+      { wch: 22 }, // Sales Rep
+      { wch: 24 }, // Rep Email
+      { wch: 18 }, // Next Reminder
+      { wch: 20 }, // Campaign
+      { wch: 14 }, // Lead Date
+      { wch: 20 }, // Created At
+      { wch: 30 }, // Notes
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Pipeline Leads');
+
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const filename = `Pipeline_Export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(buffer);
+  } catch (err) {
+    console.error('Error exporting pipeline leads:', err);
+    res.status(500).json({ message: 'Failed to export pipeline' });
+  }
+});
+
 router.get('/pipeline', async (req, res) => {
   try {
     const companyId = req.user.company_id;
     const userId = req.user.id;
+    const { campaign } = req.query;
+
+    const whereClauses = [
+      'l.company_id = ?',
+      "(l.claimed_by IS NULL OR l.claimed_by = 0 OR l.claimed_by = ? OR ? = 'company_admin')",
+    ];
+    const params = [userId, companyId, userId, req.user.role];
+
+    if (campaign && campaign !== 'all') {
+      if (campaign === 'Direct WhatsApp' || campaign === 'unassigned') {
+        whereClauses.push('(l.campaign IS NULL OR TRIM(l.campaign) = "")');
+      } else {
+        whereClauses.push('l.campaign = ?');
+        params.push(campaign);
+      }
+    }
 
     // We fetch:
     // 1. All unclaimed leads (pool)
@@ -379,14 +527,14 @@ router.get('/pipeline', async (req, res) => {
          (SELECT wm.created_at FROM whatsapp_messages wm WHERE wm.lead_id = l.id AND wm.direction = 'in' ORDER BY wm.id DESC LIMIT 1) AS latest_wa_reply_at
        FROM leads l
        LEFT JOIN users u ON u.id = l.claimed_by
-       WHERE l.company_id = ? 
-         AND (l.claimed_by IS NULL OR l.claimed_by = 0 OR l.claimed_by = ? OR ? = 'company_admin')
-       ORDER BY l.updated_at DESC LIMIT 600`,
-      [userId, companyId, userId, req.user.role]
+       WHERE ${whereClauses.join(' AND ')}
+       ORDER BY COALESCE(l.lead_date, l.created_at) DESC, l.id DESC LIMIT 600`,
+      params
     );
 
     const stages = {
       new_pool: [],
+      claimed: [],
       contacted: [],
       demo_requested: [],
       interested: [],
@@ -402,8 +550,8 @@ router.get('/pipeline', async (req, res) => {
       let stageKey = lead.status;
       if (!lead.claimed_by || lead.claimed_by === 0) {
         stageKey = 'new_pool';
-      } else if (stageKey === 'new') {
-        stageKey = 'contacted';
+      } else if (stageKey === 'new' || stageKey === 'claimed') {
+        stageKey = 'claimed';
       }
 
       if (stages[stageKey]) {
@@ -464,7 +612,7 @@ router.post('/leads/:id/claim', async (req, res) => {
        SET claimed_by = ?, 
            claimed_at = COALESCE(claimed_at, NOW()), 
            assigned_to = ?,
-           status = CASE WHEN status = 'new' THEN 'contacted' ELSE status END,
+           status = CASE WHEN status = 'new' THEN 'claimed' ELSE status END,
            updated_at = NOW() 
        WHERE id = ?`,
       [userId, userId, leadId]
@@ -549,6 +697,16 @@ router.put('/leads/:id/status', async (req, res) => {
       if (!quotation_services || !quotation_notes) {
         return res.status(400).json({
           message: 'Quotation request requires services requested and notes for admin',
+        });
+      }
+    }
+
+    // If moving to contacted, require notes/feedback
+    if (status === 'contacted') {
+      const fb = (feedback || notes || '').trim();
+      if (!fb) {
+        return res.status(400).json({
+          message: 'Notes/Feedback are mandatory when moving a lead to Contacted stage',
         });
       }
     }
@@ -690,7 +848,7 @@ router.get('/reminders', async (req, res) => {
     const userId = req.user.id;
 
     const [rows] = await pool.query(
-      `SELECT r.*, l.name AS lead_name, l.phone AS lead_phone, l.email AS lead_email, l.status AS lead_status, l.lead_company
+      `SELECT r.*, l.name AS lead_name, l.phone AS lead_phone, l.email AS lead_email, l.status AS lead_status, l.lead_company, l.is_transferred, l.transferred_from_name, l.transferred_at
        FROM lead_reminders r
        JOIN leads l ON l.id = r.lead_id
        WHERE r.company_id = ? AND (r.salesperson_id = ? OR ? = 'company_admin')
@@ -702,6 +860,306 @@ router.get('/reminders', async (req, res) => {
   } catch (err) {
     console.error('Reminders fetch error:', err);
     res.status(500).json({ message: 'Failed to fetch reminders' });
+  }
+});
+
+// ==========================================
+// INVOICES & WON LEADS (SURFSYNC SALES CRM)
+// ==========================================
+
+async function ensureInvoicesTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS invoices (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        company_id INT NOT NULL,
+        lead_id INT NOT NULL,
+        created_by INT NULL,
+        invoice_no VARCHAR(60) NOT NULL,
+        invoice_date DATE NOT NULL,
+        due_date DATE NOT NULL,
+        client_name VARCHAR(150) NOT NULL,
+        client_phone VARCHAR(50) NULL,
+        client_email VARCHAR(150) NULL,
+        place_of_supply VARCHAR(100) NULL,
+        service_name VARCHAR(255) NOT NULL,
+        sac_code VARCHAR(30) NULL DEFAULT '8965',
+        rate DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        tax_percent DECIMAL(5, 2) NOT NULL DEFAULT 18.00,
+        tax_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        cgst_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        sgst_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        igst_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        is_interstate TINYINT(1) NOT NULL DEFAULT 0,
+        total_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        received_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        balance_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        amount_in_words VARCHAR(255) NULL,
+        bank_name VARCHAR(100) NULL DEFAULT 'State Bank of India',
+        bank_account_name VARCHAR(150) NULL DEFAULT 'SURFSYNC INFOTECH PVT. LTD',
+        bank_account_no VARCHAR(60) NULL DEFAULT '45182936194',
+        bank_ifsc VARCHAR(40) NULL DEFAULT 'SBIN0001483',
+        bank_branch VARCHAR(100) NULL DEFAULT 'LAL GANJ',
+        terms TEXT NULL,
+        status ENUM('draft', 'sent', 'paid', 'partially_paid', 'cancelled') NOT NULL DEFAULT 'sent',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_inv_company (company_id),
+        INDEX idx_inv_lead (lead_id),
+        INDEX idx_inv_created_by (created_by)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+  } catch (err) {
+    console.error('ensureInvoicesTable error:', err.message);
+  }
+}
+
+// Convert numbers into Indian Rupees in words
+function numberToIndianWords(num) {
+  const nVal = Math.round(Number(num) || 0);
+  if (nVal === 0) return 'Zero Rupees';
+  const a = [
+    '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+    'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'
+  ];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const n = ('000000000' + nVal).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+  if (!n) return `${nVal} Rupees`;
+  let str = '';
+  str += Number(n[1]) !== 0 ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + ' Crore ' : '';
+  str += Number(n[2]) !== 0 ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + ' Lakh ' : '';
+  str += Number(n[3]) !== 0 ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + ' Thousand ' : '';
+  str += Number(n[4]) !== 0 ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + ' Hundred ' : '';
+  str += Number(n[5]) !== 0 ? ((str !== '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
+  return str.trim() + ' Rupees';
+}
+
+// 1. Get won leads ready for invoice
+router.get('/won-leads', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const companyId = req.companyId;
+
+    const [rows] = await pool.query(
+      `SELECT l.id, l.name, l.phone, l.email, l.lead_company, l.deal_value, l.notes,
+              l.quotation_services, l.status, l.created_at, l.updated_at,
+              COALESCE((SELECT COUNT(*) FROM invoices inv WHERE inv.lead_id = l.id), 0) AS invoice_count,
+              (SELECT inv.invoice_no FROM invoices inv WHERE inv.lead_id = l.id ORDER BY inv.id DESC LIMIT 1) AS last_invoice_no
+       FROM leads l
+       WHERE l.company_id = ? AND l.status = 'won'
+       ORDER BY l.updated_at DESC`,
+      [companyId]
+    );
+
+    res.json({ won_leads: rows });
+  } catch (err) {
+    console.error('Fetch won leads error:', err);
+    res.status(500).json({ message: 'Failed to fetch won leads' });
+  }
+});
+
+// 2. Get list of generated invoices
+router.get('/invoices', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const companyId = req.companyId;
+
+    const [rows] = await pool.query(
+      `SELECT inv.*, l.name AS original_lead_name, l.lead_company
+       FROM invoices inv
+       LEFT JOIN leads l ON l.id = inv.lead_id
+       WHERE inv.company_id = ?
+       ORDER BY inv.id DESC`,
+      [companyId]
+    );
+
+    res.json({ invoices: rows });
+  } catch (err) {
+    console.error('Fetch invoices error:', err);
+    res.status(500).json({ message: 'Failed to fetch invoices' });
+  }
+});
+
+// 3. Create a new invoice (STRICTLY for won leads)
+router.post('/invoices', async (req, res) => {
+  try {
+    await ensureInvoicesTable();
+    const companyId = req.companyId;
+    const userId = req.user?.id || null;
+
+    const {
+      lead_id,
+      service_name,
+      sac_code = '8965',
+      rate = 0,
+      tax_percent = 18,
+      is_interstate = false,
+      received_amount = 0,
+      invoice_date,
+      due_date,
+      place_of_supply = 'Bihar',
+      client_name,
+      client_phone,
+      client_email,
+      terms,
+    } = req.body;
+
+    if (!lead_id) {
+      return res.status(400).json({ message: 'Lead ID is required' });
+    }
+
+    // Verify lead exists and IS WON
+    const [[lead]] = await pool.query(
+      `SELECT * FROM leads WHERE id = ? AND company_id = ? LIMIT 1`,
+      [lead_id, companyId]
+    );
+
+    if (!lead) {
+      return res.status(404).json({ message: 'Lead not found in this company' });
+    }
+
+    if (lead.status !== 'won') {
+      return res.status(400).json({ message: 'Invoices can ONLY be created for leads with status "won"' });
+    }
+
+    // Generate sequential Invoice No (e.g., INV-541 or 541)
+    const [[lastInv]] = await pool.query(
+      `SELECT invoice_no FROM invoices WHERE company_id = ? ORDER BY id DESC LIMIT 1`,
+      [companyId]
+    );
+
+    let nextNumber = 541; // Default initial number matching sample template
+    if (lastInv && lastInv.invoice_no) {
+      const match = String(lastInv.invoice_no).match(/(\d+)/);
+      if (match) {
+        nextNumber = parseInt(match[1], 10) + 1;
+      }
+    }
+    const invoiceNo = String(nextNumber);
+
+    const baseRate = parseFloat(rate) || 0;
+    const taxPct = parseFloat(tax_percent) || 18;
+    const taxAmt = Math.round((baseRate * (taxPct / 100)) * 100) / 100;
+    const totalAmt = Math.round((baseRate + taxAmt) * 100) / 100;
+    const recAmt = parseFloat(received_amount) || 0;
+    const balAmt = Math.max(0, Math.round((totalAmt - recAmt) * 100) / 100);
+
+    let cgst = 0;
+    let sgst = 0;
+    let igst = 0;
+    if (is_interstate) {
+      igst = taxAmt;
+    } else {
+      cgst = Math.round((taxAmt / 2) * 100) / 100;
+      sgst = Math.round((taxAmt - cgst) * 100) / 100;
+    }
+
+    const words = numberToIndianWords(totalAmt);
+
+    const invDate = invoice_date || new Date().toISOString().slice(0, 10);
+    // Due date defaults to 7 days from invoice date
+    let dDate = due_date;
+    if (!dDate) {
+      const d = new Date(invDate);
+      d.setDate(d.getDate() + 7);
+      dDate = d.toISOString().slice(0, 10);
+    }
+
+    const cName = client_name || lead.name;
+    const cPhone = client_phone || lead.phone;
+    const cEmail = client_email || lead.email;
+
+    const defaultTerms = `1. Payment must be made within the due date mentioned on the invoice.\n2. Deliverables, source code, and ownership rights will be transferred only after full payment is received.\n3. Any work beyond the agreed scope shall be charged additionally.\n4. Payments once made are non-refundable.\n5. All disputes shall be subject to the jurisdiction of Patna, Bihar.`;
+
+    const [result] = await pool.query(
+      `INSERT INTO invoices 
+       (company_id, lead_id, created_by, invoice_no, invoice_date, due_date, client_name, client_phone, client_email,
+        place_of_supply, service_name, sac_code, rate, tax_percent, tax_amount, cgst_amount, sgst_amount, igst_amount,
+        is_interstate, total_amount, received_amount, balance_amount, amount_in_words, terms, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sent')`,
+      [
+        companyId,
+        lead_id,
+        userId,
+        invoiceNo,
+        invDate,
+        dDate,
+        cName,
+        cPhone,
+        cEmail,
+        place_of_supply || 'Bihar',
+        service_name || lead.quotation_services || 'Software & Digital Services',
+        sac_code || '8965',
+        baseRate,
+        taxPct,
+        taxAmt,
+        cgst,
+        sgst,
+        igst,
+        is_interstate ? 1 : 0,
+        totalAmt,
+        recAmt,
+        balAmt,
+        words,
+        terms || defaultTerms,
+      ]
+    );
+
+    const [[createdInvoice]] = await pool.query(
+      `SELECT * FROM invoices WHERE id = ?`,
+      [result.insertId]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: `Invoice #${invoiceNo} created successfully!`,
+      invoice: createdInvoice,
+    });
+  } catch (err) {
+    console.error('Create invoice error:', err);
+    res.status(500).json({ message: err.message || 'Failed to create invoice' });
+  }
+});
+
+// 4. Get invoice details by ID
+router.get('/invoices/:id', async (req, res) => {
+  try {
+    const companyId = req.companyId;
+    const [[invoice]] = await pool.query(
+      `SELECT inv.*, l.name AS lead_name, l.phone AS lead_phone, l.lead_company,
+              c.name AS company_name, c.email AS company_email, c.phone AS company_phone
+       FROM invoices inv
+       LEFT JOIN leads l ON l.id = inv.lead_id
+       LEFT JOIN companies c ON c.id = inv.company_id
+       WHERE inv.id = ? AND inv.company_id = ?
+       LIMIT 1`,
+      [req.params.id, companyId]
+    );
+
+    if (!invoice) {
+      return res.status(404).json({ message: 'Invoice not found' });
+    }
+
+    res.json({ invoice });
+  } catch (err) {
+    console.error('Fetch invoice by id error:', err);
+    res.status(500).json({ message: 'Failed to fetch invoice details' });
+  }
+});
+
+// 5. Delete invoice
+router.delete('/invoices/:id', async (req, res) => {
+  try {
+    const companyId = req.companyId;
+    await pool.query(
+      `DELETE FROM invoices WHERE id = ? AND company_id = ?`,
+      [req.params.id, companyId]
+    );
+    res.json({ success: true, message: 'Invoice deleted successfully' });
+  } catch (err) {
+    console.error('Delete invoice error:', err);
+    res.status(500).json({ message: 'Failed to delete invoice' });
   }
 });
 

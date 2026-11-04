@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { salesApi } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import QuotationRequestModal from '../components/QuotationRequestModal';
@@ -6,7 +7,9 @@ import WonDealModal from '../components/WonDealModal';
 import LostDealModal from '../components/LostDealModal';
 import WhatsAppChatModal from '../components/WhatsAppChatModal';
 import StatusFeedbackModal from '../components/StatusFeedbackModal';
+import CampaignFilterDropdown from '../components/CampaignFilterDropdown';
 import {
+  CheckCircle,
   Zap,
   Phone,
   Star,
@@ -28,19 +31,35 @@ import {
   X,
   RotateCcw,
   Monitor,
+  Ban,
+  Target,
 } from 'lucide-react';
 
 const STAGE_CONFIG = [
   { key: 'new_pool', title: 'New Pool Leads', icon: <Zap size={14} />, color: '#2A9CB8', bg: '#E8F6FA', subtitle: 'Unassigned opportunities' },
-  { key: 'contacted', title: 'Contacted', icon: <Phone size={14} />, color: '#38BDF8', bg: '#F0F9FF', subtitle: 'Initial touchpoint made' },
+  { key: 'claimed', title: 'Claimed', icon: <CheckCircle size={14} />, color: '#F68713', bg: '#FFF3E6', subtitle: 'Claimed by rep' },
+  { key: 'contacted', title: 'Contacted', icon: <Phone size={14} />, color: '#38BDF8', bg: '#F0F9FF', subtitle: 'Initial call made' },
   { key: 'demo_requested', title: 'Demo Requested', icon: <Monitor size={14} />, color: '#6366F1', bg: '#EEF2FF', subtitle: 'Product demo & specs' },
   { key: 'interested', title: 'Interested', icon: <Star size={14} />, color: '#CA8A04', bg: '#FEF3C7', subtitle: 'Active cadence running' },
   { key: 'followup', title: 'Follow-Up', icon: <RotateCw size={14} />, color: '#2563EB', bg: '#EFF6FF', subtitle: 'Negotiations & reviews' },
-  { key: 'quotation_requested', title: 'Quote Requested', icon: <FileText size={14} />, color: '#F68713', bg: '#FFF3E6', subtitle: 'Waiting for admin quote' },
+  { key: 'quotation_requested', title: 'Quote Requested', icon: <FileText size={14} />, color: '#EA580C', bg: '#FFF7ED', subtitle: 'Waiting for admin quote' },
   { key: 'quotation_sent', title: 'Quote Sent', icon: <Send size={14} />, color: '#6D28D9', bg: '#F3E8FF', subtitle: 'Admin delivered quote' },
   { key: 'won', title: 'Won Deals', icon: <Trophy size={14} />, color: '#16A34A', bg: '#DCFCE7', subtitle: 'Successfully converted' },
   { key: 'lost', title: 'Lost Deals', icon: <XCircle size={14} />, color: '#DC2626', bg: '#FEE2E2', subtitle: 'Closed without deal' },
+  { key: 'not_interested', title: 'Not Interested', icon: <Ban size={14} />, color: '#6B7280', bg: '#F3F4F6', subtitle: 'Disqualified / Dropped' },
 ];
+
+function formatLeadDate(dateVal) {
+  if (!dateVal) return '';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 function formatRelativeTime(dateString) {
   if (!dateString) return 'Recently';
@@ -67,6 +86,7 @@ function getLocalDateStr(dateVal) {
 
 export default function SalesPipelinePage() {
   const { user } = useAuth('sales');
+  const navigate = useNavigate();
   const [pipeline, setPipeline] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -79,6 +99,29 @@ export default function SalesPipelinePage() {
   const [dateFilter, setDateFilter] = useState('all');
   const [specificDate, setSpecificDate] = useState('');
   const [replyFilter, setReplyFilter] = useState('all');
+  const [campaignFilter, setCampaignFilter] = useState('all');
+
+  // Dynamic campaigns extracted from loaded pipeline
+  const dynamicCampaigns = useMemo(() => {
+    const set = new Set();
+    let hasDirectWhatsApp = false;
+    Object.values(pipeline).forEach((stageLeads) => {
+      if (Array.isArray(stageLeads)) {
+        stageLeads.forEach((l) => {
+          if (l.campaign && String(l.campaign).trim()) {
+            set.add(String(l.campaign).trim());
+          } else {
+            hasDirectWhatsApp = true;
+          }
+        });
+      }
+    });
+    const list = Array.from(set).sort();
+    if (!list.includes('Direct WhatsApp')) {
+      list.push('Direct WhatsApp');
+    }
+    return list;
+  }, [pipeline]);
 
   // Modals
   const [activeChatLead, setActiveChatLead] = useState(null);
@@ -254,9 +297,23 @@ export default function SalesPipelinePage() {
 
         if (!matchesSearch) return false;
 
+        if (campaignFilter !== 'all') {
+          if (campaignFilter === 'Direct WhatsApp') {
+            if (lead.campaign && String(lead.campaign).trim()) return false;
+          } else {
+            if (!lead.campaign || lead.campaign.trim().toLowerCase() !== campaignFilter.trim().toLowerCase()) {
+              return false;
+            }
+          }
+        }
+
         if (replyFilter === 'replied') {
           const hasReply = Boolean(lead.latest_wa_reply || (lead.unread_wa_count && lead.unread_wa_count > 0));
           if (!hasReply) return false;
+        }
+
+        if (replyFilter === 'transferred') {
+          if (!lead.is_transferred) return false;
         }
 
         if (dateFilter === 'all') return true;
@@ -295,7 +352,7 @@ export default function SalesPipelinePage() {
     });
 
     return result;
-  }, [pipeline, search, dateFilter, specificDate, replyFilter]);
+  }, [pipeline, search, dateFilter, specificDate, replyFilter, campaignFilter]);
 
   // Column limits for Kanban progressive loading
   const [columnLimits, setColumnLimits] = useState({});
@@ -324,18 +381,23 @@ export default function SalesPipelinePage() {
 
   useEffect(() => {
     setListPage(1);
-  }, [search, dateFilter, specificDate, replyFilter]);
+  }, [search, dateFilter, specificDate, replyFilter, campaignFilter]);
 
   return (
     <div style={{ maxWidth: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* Top Header Row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.65rem', fontWeight: '800', color: '#111827', margin: 0, letterSpacing: '-0.025em' }}>
-            Pipeline & Sales Funnel
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#F68713', marginBottom: '4px', fontFamily: 'Manrope, sans-serif' }}>
+            <span>Commercial Operations</span>
+            <span style={{ color: '#D1D5DB' }}>/</span>
+            <span>Inbound Pipeline</span>
+          </div>
+          <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#111827', margin: 0, letterSpacing: '-0.02em', fontFamily: 'Manrope, sans-serif' }}>
+            Enterprise Pipeline
           </h1>
-          <p style={{ margin: '0.25rem 0 0 0', color: '#6B7280', fontSize: '0.86rem' }}>
-            Multi-stage Kanban progression, quote negotiations, and conversion velocity.
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6B7280', fontFamily: 'Manrope, sans-serif' }}>
+            Track deal progression, sales rep velocity, pending admin quotation approvals, and closed won transactions.
           </p>
         </div>
 
@@ -383,6 +445,16 @@ export default function SalesPipelinePage() {
             )}
           </div>
 
+          {/* Dynamic Campaign Filter */}
+          <CampaignFilterDropdown
+            value={campaignFilter}
+            onChange={setCampaignFilter}
+            campaigns={dynamicCampaigns}
+            allLabel="All Campaigns"
+            allValue="all"
+            height="32px"
+          />
+
           {/* Date Filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#F9FAFB', border: '1px solid #E6E9EE', borderRadius: '6px', padding: '3px 8px' }}>
             <Calendar size={13} color="#6B7280" />
@@ -417,10 +489,11 @@ export default function SalesPipelinePage() {
             <select
               value={replyFilter}
               onChange={(e) => setReplyFilter(e.target.value)}
-              style={{ border: 'none', outline: 'none', fontSize: '0.8rem', fontWeight: '600', color: replyFilter === 'replied' ? '#166534' : '#374151', backgroundColor: 'transparent', cursor: 'pointer' }}
+              style={{ border: 'none', outline: 'none', fontSize: '0.8rem', fontWeight: '600', color: replyFilter === 'replied' ? '#166534' : replyFilter === 'transferred' ? '#B45309' : '#374151', backgroundColor: 'transparent', cursor: 'pointer' }}
             >
               <option value="all">All Leads</option>
               <option value="replied">🟢 WhatsApp Replied</option>
+              <option value="transferred">🔄 Transferred Leads</option>
             </select>
           </div>
 
@@ -460,7 +533,7 @@ export default function SalesPipelinePage() {
               cursor: 'pointer',
             }}
           >
-            <LayoutGrid size={13} /> Kanban
+            <LayoutGrid size={13} /> Pipeline
           </button>
           <button
             type="button"
@@ -490,7 +563,7 @@ export default function SalesPipelinePage() {
         className="sales-card"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(9, minmax(130px, 1fr))',
+          gridTemplateColumns: `repeat(${STAGE_CONFIG.length}, minmax(130px, 1fr))`,
           overflowX: 'auto',
           padding: 0,
         }}
@@ -540,7 +613,7 @@ export default function SalesPipelinePage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(9, minmax(280px, 1fr))',
+            gridTemplateColumns: `repeat(${STAGE_CONFIG.length}, minmax(280px, 1fr))`,
             gap: '1rem',
             overflowX: 'auto',
             paddingBottom: '1rem',
@@ -664,9 +737,59 @@ export default function SalesPipelinePage() {
                               <strong style={{ fontSize: '0.88rem', color: '#111827', lineHeight: 1.25, display: 'block' }}>
                                 {lead.name}
                               </strong>
+                              {lead.phone && (
+                                <div style={{ fontSize: '0.75rem', color: '#0369A1', fontWeight: 600, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Phone size={11} style={{ color: '#0284C7' }} />
+                                  <span>{lead.phone}</span>
+                                </div>
+                              )}
                               {lead.lead_company && (
                                 <div style={{ fontSize: '0.72rem', color: '#6B7280', marginTop: '1px' }}>
                                   {lead.lead_company}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Prominent Lead Date & Time */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <div
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 600,
+                                  color: '#475569',
+                                  backgroundColor: '#F1F5F9',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  width: 'fit-content',
+                                }}
+                              >
+                                <Calendar size={11} color="#64748B" />
+                                <span>{formatLeadDate(lead.lead_date || lead.created_at) || 'Recently'}</span>
+                              </div>
+
+                              {Boolean(lead.is_transferred) && (
+                                <div
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    fontSize: '0.66rem',
+                                    fontWeight: 700,
+                                    color: '#92400E',
+                                    backgroundColor: '#FEF3C7',
+                                    border: '1px solid #FCD34D',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                  }}
+                                  title={`Transferred from ${lead.transferred_from_name || 'Previous Agent'}`}
+                                >
+                                  <span>🔄 Transferred</span>
+                                  {lead.transferred_from_name && (
+                                    <span style={{ opacity: 0.85 }}>({lead.transferred_from_name})</span>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -685,6 +808,52 @@ export default function SalesPipelinePage() {
                                 >
                                   {lead.source_name || 'Website'}
                                 </span>
+
+                                {lead.campaign ? (
+                                  <span
+                                    className="badge-status"
+                                    style={{
+                                      backgroundColor: '#EFF6FF',
+                                      color: '#1D4ED8',
+                                      border: '1px solid #DBEAFE',
+                                      fontSize: '0.66rem',
+                                      fontWeight: 700,
+                                      padding: '1px 6px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                      maxWidth: '140px',
+                                    }}
+                                    title={`Ad Campaign: ${lead.campaign}`}
+                                  >
+                                    <Target size={10} color="#2563EB" style={{ flexShrink: 0 }} />
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {lead.campaign}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="badge-status"
+                                    style={{
+                                      backgroundColor: '#ECFDF5',
+                                      color: '#065F46',
+                                      border: '1px solid #A7F3D0',
+                                      fontSize: '0.66rem',
+                                      fontWeight: 700,
+                                      padding: '1px 6px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                      maxWidth: '140px',
+                                    }}
+                                    title="Direct WhatsApp Inbound Lead"
+                                  >
+                                    <MessageSquare size={10} color="#059669" style={{ flexShrink: 0 }} />
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      Direct WhatsApp
+                                    </span>
+                                  </span>
+                                )}
 
                                 {lead.deal_value && (
                                   <span className="num" style={{ fontSize: '0.75rem', fontWeight: '800', color: '#16A34A' }}>
@@ -797,36 +966,57 @@ export default function SalesPipelinePage() {
                                     </button>
                                   </div>
                                 ) : lead.status === 'won' ? (
-                                  <span style={{ fontSize: '0.72rem', color: '#16A34A', fontWeight: '800' }}>
-                                    ✓ Won
-                                  </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ fontSize: '0.72rem', color: '#16A34A', fontWeight: '800' }}>
+                                      ✓ Won
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => navigate('/sales/invoices')}
+                                      style={{
+                                        padding: '2px 7px',
+                                        fontSize: '0.68rem',
+                                        backgroundColor: '#FFF3E6',
+                                        color: '#F68713',
+                                        border: '1px solid #FED7AA',
+                                        borderRadius: '4px',
+                                        fontWeight: '700',
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      + Invoice
+                                    </button>
+                                  </div>
                                 ) : (
-                                  <select
-                                    value=""
-                                    onChange={(e) => {
-                                      if (e.target.value) handleMoveStage(lead, e.target.value);
-                                    }}
-                                    style={{
-                                      padding: '3px 6px',
-                                      fontSize: '0.7rem',
-                                      fontWeight: '600',
-                                      borderRadius: '4px',
-                                      border: '1px solid #E6E9EE',
-                                      backgroundColor: '#FFFFFF',
-                                      color: '#111827',
-                                      cursor: 'pointer',
-                                      outline: 'none',
-                                    }}
-                                  >
-                                    <option value="" disabled>Move ▾</option>
-                                    {lead.status !== 'demo_requested' && <option value="demo_requested">Demo Requested</option>}
-                                    {lead.status !== 'interested' && <option value="interested">Interested</option>}
-                                    {lead.status !== 'followup' && <option value="followup">Follow-Up</option>}
-                                    {lead.status !== 'quotation_requested' && <option value="quotation_requested">Request Quote</option>}
-                                    {lead.status !== 'won' && <option value="won">Mark Won</option>}
-                                    {lead.status !== 'lost' && <option value="lost">Mark Lost</option>}
-                                    {lead.status !== 'not_interested' && <option value="not_interested">Not Interested</option>}
-                                  </select>
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                    <select
+                                      value=""
+                                      onChange={(e) => {
+                                        if (e.target.value) handleMoveStage(lead, e.target.value);
+                                      }}
+                                      style={{
+                                        padding: '3px 8px',
+                                        fontSize: '0.7rem',
+                                        fontWeight: '600',
+                                        borderRadius: '4px',
+                                        border: '1px solid #E6E9EE',
+                                        backgroundColor: '#FFFFFF',
+                                        color: '#111827',
+                                        cursor: 'pointer',
+                                        outline: 'none',
+                                      }}
+                                    >
+                                      <option value="" disabled>Move ▾</option>
+                                      {lead.status !== 'contacted' && <option value="contacted">Contacted</option>}
+                                      {lead.status !== 'demo_requested' && <option value="demo_requested">Demo Requested</option>}
+                                      {lead.status !== 'interested' && <option value="interested">Interested</option>}
+                                      {lead.status !== 'followup' && <option value="followup">Follow-Up</option>}
+                                      {lead.status !== 'quotation_requested' && <option value="quotation_requested">Request Quote</option>}
+                                      {lead.status !== 'won' && <option value="won">Mark Won</option>}
+                                      {lead.status !== 'lost' && <option value="lost">Mark Lost</option>}
+                                      {lead.status !== 'not_interested' && <option value="not_interested">Not Interested</option>}
+                                    </select>
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -876,7 +1066,25 @@ export default function SalesPipelinePage() {
                 paginatedListLeads.map((lead) => (
                   <tr key={lead.id}>
                     <td>
-                      <div style={{ fontWeight: '700', color: '#111827' }}>{lead.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: '700', color: '#111827' }}>{lead.name}</span>
+                        {Boolean(lead.is_transferred) && (
+                          <span
+                            style={{
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              color: '#92400E',
+                              backgroundColor: '#FEF3C7',
+                              border: '1px solid #FCD34D',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                            }}
+                            title={`Transferred from ${lead.transferred_from_name || 'Previous Agent'}`}
+                          >
+                            🔄 Transferred
+                          </span>
+                        )}
+                      </div>
                       <div className="num" style={{ fontSize: '0.74rem', color: '#6B7280' }}>{lead.phone}</div>
                     </td>
                     <td style={{ color: '#4B5563' }}>{lead.lead_company || '—'}</td>

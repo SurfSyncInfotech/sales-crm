@@ -61,6 +61,7 @@ export default function SalesFeedbackPage() {
   // Filters & Pagination
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('all');
+  const [transferFilter, setTransferFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(15);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
@@ -101,13 +102,20 @@ export default function SalesFeedbackPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  const displayedFeedbacks = React.useMemo(() => {
+    if (transferFilter === 'transferred') {
+      return feedbacks.filter((fb) => Boolean(fb.is_transferred));
+    }
+    return feedbacks;
+  }, [feedbacks, transferFilter]);
+
   return (
     <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1 style={{ fontSize: '1.65rem', fontWeight: '800', color: '#111827', margin: 0, letterSpacing: '-0.025em' }}>
-            Discussion & Feedback Logs
+            Feedback Logs
           </h1>
           <p style={{ margin: '0.25rem 0 0 0', color: '#6B7280', fontSize: '0.86rem' }}>
             Audit trail of rep notes, client requirements, and stage transition feedback.
@@ -165,6 +173,24 @@ export default function SalesFeedbackPage() {
           <option value="not_interested">Not Interested</option>
         </select>
 
+        <select
+          value={transferFilter}
+          onChange={(e) => setTransferFilter(e.target.value)}
+          style={{
+            padding: '7px 10px',
+            fontSize: '0.8rem',
+            border: transferFilter === 'transferred' ? '1px solid #FCD34D' : '1px solid #E6E9EE',
+            borderRadius: '6px',
+            backgroundColor: transferFilter === 'transferred' ? '#FEF3C7' : '#FFFFFF',
+            color: transferFilter === 'transferred' ? '#92400E' : '#374151',
+            fontWeight: transferFilter === 'transferred' ? '700' : '400',
+            outline: 'none',
+          }}
+        >
+          <option value="all">All Feedbacks</option>
+          <option value="transferred">🔄 Transferred Leads Feedback</option>
+        </select>
+
         <div style={{ marginLeft: 'auto', fontSize: '0.8rem', color: '#6B7280' }}>
           Total Entries: <strong className="num" style={{ color: '#111827' }}>{pagination.total}</strong>
         </div>
@@ -196,7 +222,7 @@ export default function SalesFeedbackPage() {
                   Loading feedback records…
                 </td>
               </tr>
-            ) : feedbacks.length === 0 ? (
+            ) : displayedFeedbacks.length === 0 ? (
               <tr>
                 <td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: '#9CA3AF' }}>
                   <MessageSquareText size={32} color="#D1D5DB" style={{ margin: '0 auto 0.5rem auto' }} />
@@ -205,14 +231,32 @@ export default function SalesFeedbackPage() {
                 </td>
               </tr>
             ) : (
-              feedbacks.map((fb) => {
+              displayedFeedbacks.map((fb) => {
                 const fromBadge = getStatusBadge(fb.from_status);
                 const toBadge = getStatusBadge(fb.to_status);
 
                 return (
                   <tr key={fb.id}>
                     <td>
-                      <div style={{ fontWeight: '700', color: '#111827' }}>{fb.lead_name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: '700', color: '#111827' }}>{fb.lead_name}</span>
+                        {Boolean(fb.is_transferred) && (
+                          <span
+                            style={{
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              color: '#92400E',
+                              backgroundColor: '#FEF3C7',
+                              border: '1px solid #FCD34D',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                            }}
+                            title={`Transferred from ${fb.transferred_from_name || 'Previous Agent'}`}
+                          >
+                            🔄 Transferred
+                          </span>
+                        )}
+                      </div>
                       <div className="num" style={{ fontSize: '0.74rem', color: '#6B7280' }}>{fb.lead_phone}</div>
                       {fb.lead_company && (
                         <div style={{ fontSize: '0.72rem', color: '#9CA3AF' }}>{fb.lead_company}</div>
@@ -250,9 +294,16 @@ export default function SalesFeedbackPage() {
                     </td>
 
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem', color: '#374151', fontWeight: '600' }}>
-                        <User size={12} color="#2A9CB8" />
-                        <span>{fb.salesperson_name || 'Representative'}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem', color: '#374151', fontWeight: '600' }}>
+                          <User size={12} color="#2A9CB8" />
+                          <span>{fb.salesperson_name || 'Representative'}</span>
+                        </div>
+                        {Boolean(fb.is_transferred) && (
+                          <span style={{ fontSize: '0.68rem', color: '#B45309', fontWeight: 600 }}>
+                            (Note by previous rep)
+                          </span>
+                        )}
                       </div>
                     </td>
 

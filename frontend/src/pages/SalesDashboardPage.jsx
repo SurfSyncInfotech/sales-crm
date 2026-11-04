@@ -126,14 +126,14 @@ export default function SalesDashboardPage() {
     claimedTotal > 0 ? Math.min(100, Math.round((wonCount / claimedTotal) * 100)) : 0;
 
   return (
-    <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem', fontFamily: "'Manrope', sans-serif" }}>
       {/* Top Hero Section */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.65rem', fontWeight: '800', color: '#111827', margin: 0, letterSpacing: '-0.025em' }}>
+          <h1 style={{ fontSize: '1.65rem', fontWeight: '800', color: '#111827', margin: 0, letterSpacing: '-0.025em', fontFamily: "'Manrope', sans-serif" }}>
             Sales Overview
           </h1>
-          <p style={{ margin: '0.25rem 0 0 0', color: '#6B7280', fontSize: '0.86rem' }}>
+          <p style={{ margin: '0.25rem 0 0 0', color: '#6B7280', fontSize: '0.86rem', fontFamily: "'Manrope', sans-serif" }}>
             Welcome back, <strong style={{ color: '#111827' }}>{user?.name || 'Representative'}</strong>. Real-time lead flow and operational velocity.
           </p>
         </div>
@@ -403,20 +403,20 @@ export default function SalesDashboardPage() {
         }}
       >
         {/* Pipeline Funnel Velocity */}
-        <div className="sales-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+        <div className="sales-card" style={{ padding: '1.15rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <h3 style={{ fontSize: '0.98rem', fontWeight: '700', color: '#111827', margin: 0 }}>
+              <h3 style={{ fontSize: '0.96rem', fontWeight: '800', color: '#111827', margin: 0, fontFamily: "'Manrope', sans-serif" }}>
                 Pipeline Stage Velocity
               </h3>
-              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.78rem', color: '#6B7280' }}>
+              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.76rem', color: '#6B7280' }}>
                 Real distribution of all leads in workflow
               </p>
             </div>
             <span
               className="num"
               style={{
-                fontSize: '0.75rem',
+                fontSize: '0.74rem',
                 backgroundColor: '#F1F3F6',
                 color: '#374151',
                 padding: '3px 8px',
@@ -434,15 +434,17 @@ export default function SalesDashboardPage() {
               display: 'flex',
               alignItems: 'flex-end',
               justifyContent: 'space-between',
-              height: '150px',
+              height: '190px',
               paddingBottom: '2.2rem',
               position: 'relative',
               gap: '6px',
-              flex: 1,
+              marginTop: 'auto',
+              borderBottom: '1px solid #E5E7EB',
             }}
           >
             {funnel.map((item, idx) => {
-              const heightPct = maxCount > 0 ? Math.max(10, Math.round((item.count / maxCount) * 100)) : 10;
+              const maxScale = Math.max(Math.ceil(maxCount * 1.15), 10);
+              const heightPct = item.count > 0 ? Math.max(8, Math.round((item.count / maxScale) * 100)) : 0;
               return (
                 <div
                   key={idx}
@@ -456,15 +458,24 @@ export default function SalesDashboardPage() {
                     position: 'relative',
                   }}
                 >
-                  <span className="num" style={{ fontSize: '0.75rem', fontWeight: '700', color: '#111827', marginBottom: '4px' }}>
+                  <span
+                    className="num"
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: '800',
+                      color: item.count > 0 ? item.color : '#9CA3AF',
+                      marginBottom: '4px',
+                      fontFamily: "'Manrope', sans-serif",
+                    }}
+                  >
                     {item.count}
                   </span>
                   <div
                     style={{
                       width: '100%',
                       maxWidth: '28px',
-                      height: `${heightPct}%`,
-                      backgroundColor: item.color,
+                      height: item.count > 0 ? `${heightPct}%` : '3px',
+                      backgroundColor: item.count > 0 ? item.color : '#E5E7EB',
                       borderRadius: '4px 4px 0 0',
                       transition: 'height 0.3s ease',
                     }}
@@ -474,13 +485,13 @@ export default function SalesDashboardPage() {
                       position: 'absolute',
                       bottom: 0,
                       fontSize: '0.66rem',
-                      fontWeight: '600',
-                      color: '#6B7280',
+                      fontWeight: '700',
+                      color: '#4B5563',
                       whiteSpace: 'nowrap',
                       textAlign: 'center',
                       transform: 'translateY(100%)',
                       paddingTop: '6px',
-                      maxWidth: '38px',
+                      maxWidth: '44px',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                     }}
@@ -498,7 +509,7 @@ export default function SalesDashboardPage() {
         <div
           className="sales-card"
           style={{
-            padding: '1.25rem',
+            padding: '1.15rem',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
@@ -506,7 +517,7 @@ export default function SalesDashboardPage() {
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.98rem', fontWeight: '700', color: '#111827' }}>
+            <span style={{ fontSize: '0.96rem', fontWeight: '800', color: '#111827' }}>
               Conversion Velocity
             </span>
             <span
@@ -522,16 +533,16 @@ export default function SalesDashboardPage() {
           </div>
 
           {/* Metric display */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.5rem', margin: '1rem 0' }}>
-            <div style={{ position: 'relative', width: '96px', height: '96px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="96" height="96" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="40" stroke="#F1F3F6" strokeWidth="8" fill="none" />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.25rem', margin: 'auto 0', padding: '0.75rem 0' }}>
+            <div style={{ position: 'relative', width: '100px', height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="100" height="100" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="40" stroke="#F1F3F6" strokeWidth="9" fill="none" />
                 <circle
                   cx="50"
                   cy="50"
                   r="40"
                   stroke="#F68713" // Tangerine brand accent
-                  strokeWidth="8"
+                  strokeWidth="9"
                   fill="none"
                   strokeDasharray="251.2"
                   strokeDashoffset={251.2 - (251.2 * conversionRate) / 100}
@@ -540,17 +551,20 @@ export default function SalesDashboardPage() {
                 />
               </svg>
               <div style={{ position: 'absolute', textAlign: 'center' }}>
-                <span className="num" style={{ fontSize: '1.45rem', fontWeight: '800', color: '#111827' }}>
+                <span className="num" style={{ fontSize: '1.5rem', fontWeight: '800', color: '#111827', lineHeight: 1 }}>
                   {conversionRate}%
+                </span>
+                <span style={{ fontSize: '0.62rem', color: '#6B7280', fontWeight: '700', textTransform: 'uppercase', display: 'block', marginTop: '2px' }}>
+                  Win Rate
                 </span>
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <div style={{ fontSize: '0.86rem', fontWeight: '700', color: '#111827' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              <div style={{ fontSize: '0.88rem', fontWeight: '800', color: '#111827' }}>
                 Win Ratio
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>
+              <div style={{ fontSize: '0.74rem', color: '#6B7280' }}>
                 Claimed to Won deals
               </div>
               <div className="num" style={{ fontSize: '0.78rem', color: '#16A34A', fontWeight: '700', marginTop: '2px' }}>
@@ -560,7 +574,7 @@ export default function SalesDashboardPage() {
           </div>
 
           {/* Breakdown summary */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.78rem', borderTop: '1px solid #E6E9EE', paddingTop: '0.75rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.78rem', borderTop: '1px solid #E6E9EE', paddingTop: '0.65rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: '#6B7280' }}>Active in Pipeline</span>
               <strong className="num" style={{ color: '#111827' }}>{activeLeadsCount}</strong>
@@ -579,7 +593,7 @@ export default function SalesDashboardPage() {
         {/* Today's Follow-Up Tasks */}
         <div className="sales-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-            <h3 style={{ fontSize: '0.98rem', fontWeight: '700', color: '#111827', margin: 0 }}>
+            <h3 style={{ fontSize: '0.98rem', fontWeight: '700', color: '#111827', margin: 0, fontFamily: "'Manrope', sans-serif" }}>
               Today's Cadence Tasks
             </h3>
             <span
@@ -615,7 +629,7 @@ export default function SalesDashboardPage() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '8px 0',
+                      padding: '5px 0',
                       borderBottom: i < tasks.length - 1 ? '1px solid #F1F3F6' : 'none',
                     }}
                   >
@@ -735,7 +749,7 @@ export default function SalesDashboardPage() {
         <div className="sales-card" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div>
-              <h3 style={{ fontSize: '0.98rem', fontWeight: '700', color: '#111827', margin: 0 }}>
+              <h3 style={{ fontSize: '0.98rem', fontWeight: '700', color: '#111827', margin: 0, fontFamily: "'Manrope', sans-serif" }}>
                 Unclaimed Pool Leads
               </h3>
               <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.76rem', color: '#6B7280' }}>
@@ -839,7 +853,7 @@ export default function SalesDashboardPage() {
         <div className="sales-card" style={{ padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div>
-              <h3 style={{ fontSize: '0.98rem', fontWeight: '700', color: '#111827', margin: 0 }}>
+              <h3 style={{ fontSize: '0.98rem', fontWeight: '700', color: '#111827', margin: 0, fontFamily: "'Manrope', sans-serif" }}>
                 Recent Operational Activity
               </h3>
               <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.76rem', color: '#6B7280' }}>

@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 
 function authRequired(req, res, next) {
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  const token = (header.startsWith('Bearer ') ? header.slice(7) : null) || req.query.token;
 
   if (!token) {
     return res.status(401).json({ message: 'Authentication required' });
@@ -25,11 +25,8 @@ function requireSuperadmin(req, res, next) {
 }
 
 function requireCompanyUser(req, res, next) {
-  if (!['company_admin', 'salesperson'].includes(req.user?.role)) {
+  if (req.user?.role === 'superadmin' || !req.user?.company_id) {
     return res.status(403).json({ message: 'Company access only' });
-  }
-  if (!req.user?.company_id) {
-    return res.status(403).json({ message: 'No company linked to this account' });
   }
   next();
 }

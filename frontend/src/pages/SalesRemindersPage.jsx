@@ -60,6 +60,7 @@ export default function SalesRemindersPage() {
   const [cadenceFilter, setCadenceFilter] = useState('all');
   const [stageFilter, setStageFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [transferFilter, setTransferFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
   const [specificDate, setSpecificDate] = useState('');
 
@@ -176,6 +177,8 @@ export default function SalesRemindersPage() {
       if (statusFilter === 'upcoming' && !isUpcoming) return false;
       if (statusFilter === 'sent' && !isSent) return false;
 
+      if (transferFilter === 'transferred' && !r.is_transferred) return false;
+
       if (dateFilter !== 'all') {
         const remDateStr = getLocalDateStr(r.scheduled_for);
         const todayStr = getLocalDateStr(new Date());
@@ -269,7 +272,7 @@ export default function SalesRemindersPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1 style={{ fontSize: '1.65rem', fontWeight: '800', color: '#111827', margin: 0, letterSpacing: '-0.025em' }}>
-            Auto-Reminders & Cadence
+            Auto-Reminders
           </h1>
           <p style={{ margin: '0.25rem 0 0 0', color: '#6B7280', fontSize: '0.86rem' }}>
             Scheduled WhatsApp touchpoints on Day 2, 5, 10, and 21 across your assigned leads.
@@ -429,6 +432,24 @@ export default function SalesRemindersPage() {
         </select>
 
         <select
+          value={transferFilter}
+          onChange={(e) => setTransferFilter(e.target.value)}
+          style={{
+            padding: '7px 10px',
+            fontSize: '0.8rem',
+            border: transferFilter === 'transferred' ? '1px solid #FCD34D' : '1px solid #E6E9EE',
+            borderRadius: '6px',
+            backgroundColor: transferFilter === 'transferred' ? '#FEF3C7' : '#FFFFFF',
+            color: transferFilter === 'transferred' ? '#92400E' : '#374151',
+            fontWeight: transferFilter === 'transferred' ? '700' : '400',
+            outline: 'none',
+          }}
+        >
+          <option value="all">All Reminders</option>
+          <option value="transferred">🔄 Transferred Leads Only</option>
+        </select>
+
+        <select
           value={dateFilter}
           onChange={(e) => {
             setDateFilter(e.target.value);
@@ -528,10 +549,25 @@ export default function SalesRemindersPage() {
                       {initials}
                     </div>
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <strong style={{ fontSize: '0.92rem', color: '#111827' }}>{group.lead_name}</strong>
                         {group.lead_company && (
                           <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>• {group.lead_company}</span>
+                        )}
+                        {group.reminders?.some((r) => r.is_transferred) && (
+                          <span
+                            style={{
+                              fontSize: '0.64rem',
+                              fontWeight: '700',
+                              color: '#92400E',
+                              backgroundColor: '#FEF3C7',
+                              border: '1px solid #FCD34D',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            🔄 Transferred Lead
+                          </span>
                         )}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.75rem', color: '#6B7280', marginTop: '2px' }}>
@@ -693,7 +729,25 @@ export default function SalesRemindersPage() {
                       />
                     </td>
                     <td>
-                      <div style={{ fontWeight: '700', color: '#111827' }}>{reminder.lead_name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: '700', color: '#111827' }}>{reminder.lead_name}</span>
+                        {Boolean(reminder.is_transferred) && (
+                          <span
+                            style={{
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              color: '#92400E',
+                              backgroundColor: '#FEF3C7',
+                              border: '1px solid #FCD34D',
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                            }}
+                            title={`Transferred from ${reminder.transferred_from_name || 'Previous Agent'}`}
+                          >
+                            🔄 Transferred
+                          </span>
+                        )}
+                      </div>
                       <div style={{ fontSize: '0.74rem', color: '#6B7280' }}>
                         {reminder.lead_company ? `${reminder.lead_company} • ` : ''}
                         <span className="num">{reminder.lead_phone}</span>

@@ -63,11 +63,54 @@ export async function api(path, options = {}) {
   return data;
 }
 
+export async function downloadFile(path, defaultFilename, options = {}) {
+  const { portal, ...rest } = options;
+  const token = getToken(portal);
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers,
+    ...rest,
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    let msg = 'Failed to download file';
+    try {
+      const parsed = JSON.parse(errorText);
+      msg = parsed.message || msg;
+    } catch {}
+    throw new Error(msg);
+  }
+
+  let filename = defaultFilename;
+  const disposition = res.headers.get('content-disposition');
+  if (disposition && disposition.includes('filename=')) {
+    const match = disposition.match(/filename="?([^";]+)"?/);
+    if (match && match[1]) filename = match[1];
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 export const authApi = {
-  login: (email, password, portal = 'superadmin') =>
-    api('/auth/login', { method: 'POST', body: { email, password, portal }, portal }),
+  login: (email, password, portal = 'superadmin', role_tag = null) =>
+    api('/auth/login', { method: 'POST', body: { email, password, portal, role_tag }, portal }),
   me: (portal) => api('/auth/me', { portal }),
   companyPortal: (slug) => api(`/auth/company-portal/${slug}`, { portal: 'company' }),
+  companyRoles: (params) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return api(`/auth/company-roles${qs}`, { portal: 'company' });
+  },
 };
 
 export const dashboardApi = {
@@ -117,6 +160,8 @@ export const adminWabaApi = {
 
 export const companyPortalApi = {
   dashboard: () => api('/company/dashboard', { portal: 'company' }),
+  getProfile: () => api('/company/profile', { portal: 'company' }),
+  updateProfile: (body) => api('/company/profile', { method: 'PUT', body, portal: 'company' }),
   team: () => api('/company/team', { portal: 'company' }),
   domains: () => api('/company/domains', { portal: 'company' }),
   addMember: (body) => api('/company/team', { method: 'POST', body, portal: 'company' }),
@@ -128,9 +173,14 @@ export const companyPortalApi = {
     api(`/company/team/${id}/domain`, { method: 'PATCH', body: { domain }, portal: 'company' }),
   impersonateSales: (memberId) =>
     api(`/company/team/${memberId}/impersonate`, { method: 'POST', portal: 'company' }),
+  memberLeadsSummary: (id) =>
+    api(`/company/team/${id}/leads-summary`, { portal: 'company' }),
+  transferLeads: (body) =>
+    api('/company/team/transfer-leads', { method: 'POST', body, portal: 'company' }),
   deleteMember: (id) =>
     api(`/company/team/${id}`, { method: 'DELETE', portal: 'company' }),
   leadSources: () => api('/company/leads/sources', { portal: 'company' }),
+  leadCampaigns: () => api('/company/leads/campaigns', { portal: 'company' }),
   toggleLeadSource: (sourceId, is_enabled) =>
     api(`/company/leads/sources/${sourceId}`, {
       method: 'PATCH',
@@ -180,8 +230,19 @@ export const companyPortalApi = {
     const query = qs.toString();
     return api(`/company/leads${query ? `?${query}` : ''}`, { portal: 'company' });
   },
+  exportLeads: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') qs.set(key, value);
+    });
+    const query = qs.toString();
+    return downloadFile(`/company/leads/export${query ? `?${query}` : ''}`, `Leads_Export_${new Date().toISOString().slice(0, 10)}.xlsx`, { portal: 'company' });
+  },
+  exportPipeline: (campaign) =>
+    downloadFile(`/sales/pipeline/export${campaign && campaign !== 'all' ? `?campaign=${encodeURIComponent(campaign)}` : ''}`, `Pipeline_Export_${new Date().toISOString().slice(0, 10)}.xlsx`, { portal: 'company' }),
   createLead: (body) => api('/company/leads', { method: 'POST', body, portal: 'company' }),
   updateLead: (id, body) => api(`/company/leads/${id}`, { method: 'PATCH', body, portal: 'company' }),
+  deleteLead: (id) => api(`/company/leads/${id}`, { method: 'DELETE', portal: 'company' }),
   previewExcel: (body) => api('/company/leads/preview-excel', { method: 'POST', body, portal: 'company' }),
   uploadLeads: (body) => api('/company/leads/upload', { method: 'POST', body, portal: 'company' }),
   getUrls: (sourceId) => api(`/company/leads/urls${sourceId ? `?source_id=${sourceId}` : ''}`, { portal: 'company' }),
@@ -231,13 +292,24 @@ export const companyPortalApi = {
   wabaSendMessage: (phone, body) => api(`/company/waba/conversations/${encodeURIComponent(phone)}/send`, { method: 'POST', body, portal: 'company' }),
   wabaUnsubscribes: () => api('/company/waba/unsubscribes', { portal: 'company' }),
   wabaAddUnsubscribe: (body) => api('/company/waba/unsubscribes', { method: 'POST', body, portal: 'company' }),
+  feedbacks: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') qs.set(key, val);
+    });
+    const query = qs.toString();
+    return api(`/company/feedbacks${query ? `?${query}` : ''}`, { portal: 'company' });
+  },
 };
 
 export const salesApi = {
   stats: () => api('/sales/stats', { portal: 'sales' }),
   leads: (view) => api(`/sales/leads${view ? `?view=${view}` : ''}`, { portal: 'sales' }),
   createLead: (body) => api('/sales/leads', { method: 'POST', body, portal: 'sales' }),
-  pipeline: () => api('/sales/pipeline', { portal: 'sales' }),
+  pipeline: (campaign) =>
+    api(`/sales/pipeline${campaign && campaign !== 'all' ? `?campaign=${encodeURIComponent(campaign)}` : ''}`, { portal: 'sales' }),
+  exportPipeline: (campaign) =>
+    downloadFile(`/sales/pipeline/export${campaign && campaign !== 'all' ? `?campaign=${encodeURIComponent(campaign)}` : ''}`, `Pipeline_Export_${new Date().toISOString().slice(0, 10)}.xlsx`, { portal: 'sales' }),
   claimLead: (id) => api(`/sales/leads/${id}/claim`, { method: 'POST', portal: 'sales' }),
   updateStatus: (id, body) => api(`/sales/leads/${id}/status`, { method: 'PUT', body, portal: 'sales' }),
   reminders: () => api('/sales/reminders', { portal: 'sales' }),
@@ -251,6 +323,11 @@ export const salesApi = {
     const query = qs.toString();
     return api(`/sales/feedbacks${query ? `?${query}` : ''}`, { portal: 'sales' });
   },
+  wonLeads: () => api('/sales/won-leads', { portal: 'sales' }),
+  invoices: () => api('/sales/invoices', { portal: 'sales' }),
+  createInvoice: (body) => api('/sales/invoices', { method: 'POST', body, portal: 'sales' }),
+  invoiceDetails: (id) => api(`/sales/invoices/${id}`, { portal: 'sales' }),
+  deleteInvoice: (id) => api(`/sales/invoices/${id}`, { method: 'DELETE', portal: 'sales' }),
 };
 
 export const salesAuthApi = {
@@ -275,6 +352,21 @@ export const notificationsApi = {
   list: (portal) => api('/notifications', { portal }),
   markAsRead: (id, portal) => api(`/notifications/${id}/read`, { method: 'PATCH', portal }),
   markAllAsRead: (portal) => api('/notifications/read-all', { method: 'POST', portal }),
+};
+
+export const demoRequestsApi = {
+  submit: (body) => api('/demo-requests', { method: 'POST', body }),
+  list: (params = {}) => {
+    const q = new URLSearchParams();
+    if (params.status && params.status !== 'all') q.append('status', params.status);
+    if (params.search) q.append('search', params.search);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return api(`/demo-requests${qs}`, { portal: 'superadmin' });
+  },
+  updateStatus: (id, status, notes) =>
+    api(`/demo-requests/${id}/status`, { method: 'PATCH', body: { status, notes }, portal: 'superadmin' }),
+  delete: (id) =>
+    api(`/demo-requests/${id}`, { method: 'DELETE', portal: 'superadmin' }),
 };
 
 export const companyApi = companyPortalApi;

@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   ShieldCheck,
+  ReceiptText,
 } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 
@@ -20,6 +21,7 @@ const links = [
   { to: '/sales', label: 'Dashboard', end: true, icon: <LayoutGrid size={18} /> },
   { to: '/sales/leads', label: 'Leads', icon: <Users size={18} /> },
   { to: '/sales/pipeline', label: 'Sales Pipeline', icon: <Kanban size={18} /> },
+  { to: '/sales/invoices', label: 'Invoices', icon: <ReceiptText size={18} /> },
   { to: '/sales/reminders', label: 'Auto-Reminders', icon: <Clock size={18} /> },
   { to: '/sales/feedback', label: 'Feedback Logs', icon: <MessageSquareText size={18} /> },
 ];
@@ -48,7 +50,7 @@ export default function SalesLayout() {
     : 'SR';
 
   return (
-    <div className="sales-workspace-root" style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#F6F7F9' }}>
+    <div className="sales-workspace-root" style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#F6F7F9', fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
       {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div

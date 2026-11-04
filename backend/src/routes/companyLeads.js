@@ -403,10 +403,159 @@ router.delete('/facebook/connections/:pageId', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/company/leads/campaigns
+ * Get list of all distinct active campaigns for the current company
+ */
+router.get('/campaigns', async (req, res) => {
+  try {
+    const companyId = req.user.company_id;
+    const [rows] = await pool.query(
+      `SELECT DISTINCT TRIM(campaign) AS campaign, COUNT(*) AS count
+       FROM leads
+       WHERE company_id = ?
+         AND campaign IS NOT NULL
+         AND TRIM(campaign) != ''
+       GROUP BY TRIM(campaign)
+       ORDER BY count DESC, campaign ASC`,
+      [companyId]
+    );
+
+    res.json({
+      campaigns: rows.map((r) => r.campaign),
+      campaign_details: rows,
+    });
+  } catch (err) {
+    console.error('Failed to get campaigns:', err);
+    res.status(500).json({ message: 'Failed to fetch campaigns' });
+  }
+});
+
+/**
+ * GET /api/company/leads/export
+ * Export filtered leads to a genuine Excel (.xlsx) file
+ */
+router.get('/export', async (req, res) => {
+  try {
+    const companyId = req.user.company_id;
+    const { source, status, q, campaign } = req.query;
+
+    const where = ['l.company_id = ?'];
+    const params = [companyId];
+
+    if (req.user.role === 'salesperson') {
+      where.push('(l.assigned_to = ? OR l.claimed_by = ?)');
+      params.push(req.user.id, req.user.id);
+    }
+
+    if (source) {
+      where.push('(s.slug = ? OR l.source_name = ?)');
+      params.push(source, source);
+    }
+
+    if (status) {
+      where.push('l.status = ?');
+      params.push(status);
+    }
+
+    if (campaign && campaign !== 'all') {
+      if (campaign === 'Direct WhatsApp' || campaign === 'unassigned') {
+        where.push('(l.campaign IS NULL OR TRIM(l.campaign) = "")');
+      } else {
+        where.push('l.campaign = ?');
+        params.push(campaign);
+      }
+    }
+
+    if (q) {
+      where.push('(l.name LIKE ? OR l.email LIKE ? OR l.phone LIKE ? OR l.lead_code LIKE ? OR l.campaign LIKE ?)');
+      const like = `%${q}%`;
+      params.push(like, like, like, like, like);
+    }
+
+    const whereSql = where.join(' AND ');
+
+    const [rows] = await pool.query(
+      `SELECT l.id,
+              l.lead_code,
+              l.name,
+              l.phone,
+              l.email,
+              l.lead_company,
+              l.status,
+              l.deal_value,
+              COALESCE(s.name, l.source_name, 'Direct / Form') AS source_name,
+              l.campaign,
+              u.name AS assigned_to_name,
+              u.email AS assigned_to_email,
+              l.notes,
+              l.created_at,
+              l.lead_date
+       FROM leads l
+       LEFT JOIN lead_sources s ON s.id = l.source_id
+       LEFT JOIN users u ON u.id = COALESCE(l.assigned_to, l.claimed_by)
+       WHERE ${whereSql}
+       ORDER BY COALESCE(l.lead_date, l.created_at) DESC, l.id DESC
+       LIMIT 5000`,
+      params
+    );
+
+    const exportData = rows.map((r, idx) => ({
+      'S.No': idx + 1,
+      'Lead Code': r.lead_code || `LEAD-${r.id}`,
+      'Client / Lead Name': r.name || 'Unnamed Lead',
+      'Phone Number': r.phone ? (String(r.phone).startsWith('+') ? r.phone : `+${r.phone}`) : '',
+      'Email Address': r.email || '',
+      'Company / Organization': r.lead_company || '',
+      'Status': (r.status || 'New').toUpperCase(),
+      'Deal Value (₹)': r.deal_value ? Number(r.deal_value) : 0,
+      'Lead Source': r.source_name || '',
+      'Campaign': r.campaign || '',
+      'Assigned Sales Rep': r.assigned_to_name || 'Unassigned',
+      'Sales Rep Email': r.assigned_to_email || '',
+      'Lead Date': r.lead_date ? new Date(r.lead_date).toLocaleDateString('en-IN') : (r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : ''),
+      'Created At': r.created_at ? new Date(r.created_at).toLocaleString('en-IN') : '',
+      'Notes': r.notes || '',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    worksheet['!cols'] = [
+      { wch: 6 },  // S.No
+      { wch: 14 }, // Lead Code
+      { wch: 24 }, // Client Name
+      { wch: 18 }, // Phone
+      { wch: 24 }, // Email
+      { wch: 24 }, // Company
+      { wch: 14 }, // Status
+      { wch: 16 }, // Deal Value
+      { wch: 22 }, // Source
+      { wch: 22 }, // Campaign
+      { wch: 20 }, // Sales Rep
+      { wch: 24 }, // Rep Email
+      { wch: 14 }, // Lead Date
+      { wch: 20 }, // Created At
+      { wch: 30 }, // Notes
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads');
+
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const filename = `Leads_Export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(buffer);
+  } catch (err) {
+    console.error('Failed to export leads:', err);
+    res.status(500).json({ message: 'Failed to export leads' });
+  }
+});
+
 router.get('/', async (req, res) => {
   try {
     const companyId = req.user.company_id;
-    const { source, status, q, page = 1, limit = 20 } = req.query;
+    const { source, status, campaign, q, page = 1, limit = 20 } = req.query;
     const pageNum = Math.max(1, Number(page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(limit) || 20));
     const offset = (pageNum - 1) * pageSize;
@@ -429,6 +578,15 @@ router.get('/', async (req, res) => {
       params.push(status);
     }
 
+    if (campaign && campaign !== 'all') {
+      if (campaign === 'Direct WhatsApp' || campaign === 'unassigned') {
+        where.push('(l.campaign IS NULL OR TRIM(l.campaign) = "")');
+      } else {
+        where.push('l.campaign = ?');
+        params.push(campaign);
+      }
+    }
+
     if (q) {
       where.push('(l.name LIKE ? OR l.email LIKE ? OR l.phone LIKE ? OR l.lead_code LIKE ? OR l.campaign LIKE ?)');
       const like = `%${q}%`;
@@ -447,21 +605,22 @@ router.get('/', async (req, res) => {
 
     const [rows] = await pool.query(
       `SELECT l.*,
-              s.name AS source_label,
-              s.slug AS source_slug,
+              COALESCE(s.name, l.source_name, 'Facebook WhatsApp Ad') AS source_label,
+              COALESCE(s.slug, 'whatsapp') AS source_slug,
               u.name AS assigned_name,
               u.email AS assigned_email
        FROM leads l
        LEFT JOIN lead_sources s ON s.id = l.source_id
-       LEFT JOIN users u ON u.id = l.assigned_to
+       LEFT JOIN users u ON u.id = COALESCE(l.assigned_to, l.claimed_by)
        WHERE ${whereSql}
-       ORDER BY l.lead_date DESC, l.id DESC
+       ORDER BY COALESCE(l.lead_date, l.created_at) DESC, l.id DESC
        LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]
     );
 
     const leads = rows.map((row) => ({
       ...row,
+      assigned_to: row.assigned_to || row.claimed_by || null,
       tags: typeof row.tags === 'string' ? JSON.parse(row.tags || '[]') : row.tags || [],
     }));
 
@@ -875,6 +1034,19 @@ router.patch('/:id', async (req, res) => {
     }
 
     if (status && status !== existing.status) {
+      const isManagerOrAdmin = req.user.role === 'company_admin' || String(req.user.custom_role || '').trim().toLowerCase() === 'manager';
+      if (!isManagerOrAdmin) {
+        return res.status(403).json({ message: 'Only Admin or Manager can change lead status' });
+      }
+
+      // Record transition in lead_feedbacks for audit trail
+      const fbAuditText = notes || (demo_link ? `Demo website link: ${demo_link}` : `Status updated to ${status} by ${req.user.custom_role || (req.user.role === 'company_admin' ? 'Company Admin' : 'Manager')}`);
+      await pool.query(
+        `INSERT INTO lead_feedbacks (company_id, lead_id, user_id, from_status, to_status, feedback)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [companyId, leadId, req.user.id, existing.status || 'new', status, fbAuditText]
+      );
+
       const [stageRows] = await pool.query(
         `SELECT id FROM pipeline_stages WHERE company_id = ? AND legacy_status = ? AND is_active = 1
          ORDER BY position ASC LIMIT 1`,
@@ -1236,6 +1408,38 @@ router.patch('/tasks/:id/complete', async (req, res) => {
   } catch (err) {
     console.error('Task complete error:', err);
     res.status(500).json({ message: 'Failed to update task status' });
+  }
+});
+
+/**
+ * DELETE /api/company/leads/:id
+ * Allows company_admin to permanently delete a lead
+ */
+router.delete('/:id', async (req, res) => {
+  try {
+    if (req.user.role !== 'company_admin') {
+      return res.status(403).json({ message: 'Only company admins can delete leads' });
+    }
+    const companyId = req.user.company_id;
+    const leadId = Number(req.params.id);
+    if (!leadId) {
+      return res.status(400).json({ message: 'Invalid lead ID' });
+    }
+
+    await pool.query('DELETE FROM lead_reminders WHERE lead_id = ? AND company_id = ?', [leadId, companyId]).catch(() => {});
+    await pool.query('DELETE FROM whatsapp_messages WHERE lead_id = ?', [leadId]).catch(() => {});
+    await pool.query('DELETE FROM notifications WHERE link LIKE ?', [`%${leadId}%`]).catch(() => {});
+
+    const [result] = await pool.query('DELETE FROM leads WHERE id = ? AND company_id = ?', [leadId, companyId]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Lead not found or already deleted' });
+    }
+
+    res.json({ success: true, message: 'Lead deleted successfully' });
+  } catch (err) {
+    console.error('Delete lead error:', err);
+    res.status(500).json({ message: 'Failed to delete lead' });
   }
 });
 

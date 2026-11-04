@@ -14,11 +14,11 @@ async function restoreSession(portal) {
       clearToken(portal);
       return null;
     }
-    if (portal === 'company' && !['company_admin', 'salesperson'].includes(user.role)) {
+    if (portal === 'company' && user.role !== 'company_admin') {
       clearToken(portal);
       return null;
     }
-    if (portal === 'sales' && !['salesperson', 'company_admin'].includes(user.role)) {
+    if (portal === 'sales' && user.role !== 'salesperson') {
       clearToken(portal);
       return null;
     }
@@ -51,8 +51,8 @@ export function AuthProvider({ children }) {
     boot();
   }, []);
 
-  async function login(email, password, portal = 'superadmin') {
-    const data = await authApi.login(email, password, portal);
+  async function login(email, password, portal = 'superadmin', roleTag = null) {
+    const data = await authApi.login(email, password, portal, roleTag);
     setToken(portal, data.token);
 
     if (portal === 'company') {
@@ -125,7 +125,7 @@ export function useAuth(portal) {
     return {
       user: ctx.companyUser,
       loading: ctx.loading,
-      login: (email, password) => ctx.login(email, password, 'company'),
+      login: (email, password, roleTag) => ctx.login(email, password, 'company', roleTag),
       logout: () => ctx.logout('company'),
       setSalesSession: ctx.setSalesSession,
       portal: 'company',

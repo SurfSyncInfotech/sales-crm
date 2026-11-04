@@ -9,11 +9,21 @@ const { sendOtpSms } = require('../services/sms');
 const router = express.Router();
 
 function issueToken(user) {
+  let permissions = [];
+  if (user.permissions) {
+    try {
+      permissions = typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions;
+    } catch (e) {
+      permissions = [];
+    }
+  }
   return jwt.sign(
     {
       id: user.id,
       email: user.email,
       role: user.role,
+      custom_role: user.custom_role || null,
+      permissions: Array.isArray(permissions) ? permissions : [],
       company_id: user.company_id,
     },
     process.env.JWT_SECRET,
@@ -22,11 +32,21 @@ function issueToken(user) {
 }
 
 function publicUser(user, company = null) {
+  let permissions = [];
+  if (user.permissions) {
+    try {
+      permissions = typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions;
+    } catch (e) {
+      permissions = [];
+    }
+  }
   return {
     id: user.id,
     name: user.name,
     email: user.email,
     role: user.role,
+    custom_role: user.custom_role || null,
+    permissions: Array.isArray(permissions) ? permissions : [],
     company_id: user.company_id,
     company,
   };
@@ -34,8 +54,8 @@ function publicUser(user, company = null) {
 
 async function findUserByEmail(email) {
   const [rows] = await pool.query(
-    `SELECT u.id, u.name, u.email, u.password_hash, u.role, u.company_id, u.is_active,
-            c.name AS company_name, c.status AS company_status
+    `SELECT u.id, u.name, u.email, u.password_hash, u.role, u.custom_role, u.permissions, u.company_id, u.is_active,
+            c.name AS company_name, c.status AS company_status, c.slug AS company_slug
      FROM users u
      LEFT JOIN companies c ON c.id = u.company_id
      WHERE LOWER(u.email) = LOWER(?) LIMIT 1`,
@@ -47,7 +67,7 @@ async function findUserByEmail(email) {
 async function getCompanySummary(companyId) {
   if (!companyId) return null;
   const [rows] = await pool.query(
-    `SELECT c.id, c.name, c.status, p.name AS plan_name
+    `SELECT c.id, c.name, c.slug, c.status, p.name AS plan_name
      FROM companies c
      LEFT JOIN subscription_plans p ON p.id = c.plan_id
      WHERE c.id = ? LIMIT 1`,
@@ -70,7 +90,7 @@ async function getCompanySummary(companyId) {
 
 router.post('/login', async (req, res) => {
   try {
-    const { email, password, portal = 'superadmin' } = req.body;
+    const { email, password, portal = 'superadmin', role_tag } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
@@ -87,7 +107,7 @@ router.post('/login', async (req, res) => {
     }
 
     if (portal === 'company' || portal === 'sales') {
-      if (!['company_admin', 'salesperson'].includes(user.role)) {
+      if (user.role === 'superadmin' || !user.company_id) {
         return res.status(403).json({ message: 'Use the sales/company portal credentials to sign in here' });
       }
 
@@ -99,12 +119,52 @@ router.post('/login', async (req, res) => {
         return res.status(403).json({ message: `Company is ${company.status}. Contact SurfSync support.` });
       }
 
+      // Strict portal-to-role restrictions
+      if (portal === 'sales' && user.role !== 'salesperson') {
+        return res.status(403).json({
+          message: 'Admin/Manager credentials cannot access the Sales Console. Please sign in via the Company Admin Portal.',
+        });
+      }
+
+      if (portal === 'company' && user.role !== 'company_admin') {
+        return res.status(403).json({
+          message: 'Salesperson credentials cannot access the Company Admin Portal. Please sign in via the Sales Console.',
+        });
+      }
+
+      // Strict role check for Company Portal (dynamic role matching)
+      if (portal === 'company' && role_tag) {
+        const selectedTag = String(role_tag).trim().toLowerCase();
+        const customRole = user.custom_role ? String(user.custom_role).trim() : null;
+        const isPrimaryAdmin = !customRole || customRole.toLowerCase() === 'admin';
+
+        if (isPrimaryAdmin) {
+          if (selectedTag !== 'admin') {
+            return res.status(403).json({
+              message: `Access Denied: This account is registered as Company Admin. You cannot sign in under the '${role_tag}' tag. Please select the Admin tag.`,
+            });
+          }
+        } else {
+          // User has a specific registered role (e.g. Manager, CEO, HR)
+          if (selectedTag === 'admin') {
+            return res.status(403).json({
+              message: `Access Denied: This account is registered as ${customRole}. You cannot sign in under the Admin tag. Please select the ${customRole} tag.`,
+            });
+          }
+          if (selectedTag !== customRole.toLowerCase()) {
+            return res.status(403).json({
+              message: `Access Denied: This account is registered as ${customRole}. You cannot sign in under the '${role_tag}' tag. Please select the ${customRole} tag.`,
+            });
+          }
+        }
+      }
+
       const token = issueToken(user);
       return res.json({ token, user: publicUser(user, company) });
     }
 
     if (user.role !== 'superadmin') {
-      return res.status(403).json({ message: 'Superadmin access only for this portal' });
+      return res.status(403).json({ message: 'Superadmin access only for this portal. Please sign in through your designated portal.' });
     }
 
     const token = issueToken(user);
@@ -123,7 +183,7 @@ router.get('/me', async (req, res) => {
 
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     const [rows] = await pool.query(
-      'SELECT id, name, email, role, company_id, is_active FROM users WHERE id = ? LIMIT 1',
+      'SELECT id, name, email, role, custom_role, permissions, company_id, is_active FROM users WHERE id = ? LIMIT 1',
       [payload.id]
     );
     const user = rows[0];
@@ -166,6 +226,28 @@ router.get('/company-portal/:slug', async (req, res) => {
       return res.status(403).json({ message: `Company is ${company.status}` });
     }
 
+    const [roleRows] = await pool.query(
+      `SELECT DISTINCT custom_role FROM users
+       WHERE company_id = ? AND role = 'company_admin' AND is_active = 1 AND custom_role IS NOT NULL AND TRIM(custom_role) != ''`,
+      [company.id]
+    );
+
+    const roles = [{ id: 'admin', label: 'Admin' }];
+    const seen = new Set(['admin']);
+
+    for (const row of roleRows) {
+      const label = String(row.custom_role || '').trim();
+      const id = label.toLowerCase();
+      if (label && !seen.has(id)) {
+        seen.add(id);
+        roles.push({ id, label });
+      }
+    }
+
+    if (!seen.has('manager')) {
+      roles.push({ id: 'manager', label: 'Manager' });
+    }
+
     res.json({
       company: {
         id: company.id,
@@ -173,10 +255,54 @@ router.get('/company-portal/:slug', async (req, res) => {
         slug: company.slug,
         admin_email: company.admin_email || '',
       },
+      roles,
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Failed to load company portal' });
+  }
+});
+
+router.get('/company-roles', async (req, res) => {
+  try {
+    const { slug, email } = req.query || {};
+    let companyId = null;
+
+    if (slug) {
+      const [c] = await pool.query('SELECT id FROM companies WHERE slug = ? LIMIT 1', [slug]);
+      if (c[0]) companyId = c[0].id;
+    } else if (email) {
+      const [u] = await pool.query('SELECT company_id FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1', [email]);
+      if (u[0]) companyId = u[0].company_id;
+    }
+
+    const roles = [{ id: 'admin', label: 'Admin' }];
+    const seen = new Set(['admin']);
+
+    if (companyId) {
+      const [roleRows] = await pool.query(
+        `SELECT DISTINCT custom_role FROM users
+         WHERE company_id = ? AND role = 'company_admin' AND is_active = 1 AND custom_role IS NOT NULL AND TRIM(custom_role) != ''`,
+        [companyId]
+      );
+      for (const row of roleRows) {
+        const label = String(row.custom_role || '').trim();
+        const id = label.toLowerCase();
+        if (label && !seen.has(id)) {
+          seen.add(id);
+          roles.push({ id, label });
+        }
+      }
+    }
+
+    if (!seen.has('manager')) {
+      roles.push({ id: 'manager', label: 'Manager' });
+    }
+
+    res.json({ roles });
+  } catch (err) {
+    console.error(err);
+    res.json({ roles: [{ id: 'admin', label: 'Admin' }, { id: 'manager', label: 'Manager' }] });
   }
 });
 

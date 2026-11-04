@@ -1,5 +1,30 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { companiesApi, plansApi } from '../api/client';
+import {
+  Building2,
+  Plus,
+  Search,
+  ExternalLink,
+  Edit2,
+  Trash2,
+  Power,
+  ChevronDown,
+  ChevronUp,
+  X,
+  Shield,
+  CheckCircle2,
+  AlertTriangle,
+  User,
+  Users,
+  Calendar,
+  Lock,
+  Mail,
+  Phone,
+  MapPin,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+} from 'lucide-react';
 
 const PAGE_SIZE = 10;
 
@@ -15,7 +40,7 @@ function formatDate(value) {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value).slice(0, 10);
-  return d.toLocaleDateString('en-IN');
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 const emptyForm = {
@@ -99,6 +124,8 @@ export default function CompaniesPage() {
       });
       setForm(emptyForm);
       setShowForm(false);
+      setSuccessMsg('Company created successfully!');
+      setTimeout(() => setSuccessMsg(''), 4000);
       await load();
     } catch (err) {
       setError(err.message);
@@ -177,7 +204,6 @@ export default function CompaniesPage() {
     try {
       const data = await companiesApi.get(company.id);
       setDetail(data);
-
     } catch (err) {
       setError(err.message);
       setExpandedId(null);
@@ -199,6 +225,8 @@ export default function CompaniesPage() {
       await companiesApi.remove(company.id);
       setExpandedId(null);
       setDetail(null);
+      setSuccessMsg(`Company "${company.name}" deleted.`);
+      setTimeout(() => setSuccessMsg(''), 4000);
       await load();
     } catch (err) {
       setError(err.message);
@@ -214,481 +242,813 @@ export default function CompaniesPage() {
     }
   }
 
-
-
   const showingFrom = filtered.length === 0 ? 0 : pageStart + 1;
   const showingTo = Math.min(pageStart + PAGE_SIZE, filtered.length);
 
   return (
-    <div className="page">
-      <header className="page-head">
-        <div>
-          <p className="eyebrow">Tenants</p>
-          <h1>Companies</h1>
-        </div>
-        <button type="button" className="primary-btn" onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Close form' : '+ Create company'}
-        </button>
-      </header>
+    <div className="sa-companies-page" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <style>{`
+        .sa-companies-page,
+        .sa-companies-page * {
+          font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+          box-sizing: border-box;
+        }
+        .sa-field-label {
+          display: block;
+          font-size: 13px;
+          font-weight: 700;
+          color: #374151;
+          margin-bottom: 6px;
+        }
+        .sa-form-input {
+          width: 100%;
+          height: 38px;
+          padding: 0 12px;
+          border-radius: 10px;
+          border: 1px solid #D0D5DD;
+          background-color: #FFFFFF;
+          font-size: 13.5px;
+          color: #111827;
+          outline: none;
+          transition: border-color 0.15s ease;
+        }
+        .sa-form-input:focus {
+          border-color: #0B6BE6;
+          box-shadow: 0 0 0 4px rgba(11, 107, 230, 0.15);
+        }
+      `}</style>
 
-      <div className="mobile-cta-row mobile-only">
-        <button type="button" className="primary-btn" onClick={() => setShowForm((v) => !v)}>
-          {showForm ? 'Close form' : '+ Create company'}
+      {/* 1. Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '11px',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              color: '#07A96A',
+              marginBottom: '4px',
+            }}
+          >
+            <span>Tenant Management</span>
+            <span style={{ color: '#D1D5DB' }}>/</span>
+            <span>Enterprise Fleet</span>
+          </div>
+          <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#111827', margin: 0, letterSpacing: '-0.025em' }}>
+            Companies & Tenants
+          </h1>
+          <p style={{ margin: '4px 0 0 0', color: '#6B7280', fontSize: '13.5px' }}>
+            Manage client tenant organizations, assign subscription plans, and manage administrator access.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowForm((v) => !v)}
+          style={{
+            height: '40px',
+            padding: '0 18px',
+            borderRadius: '12px',
+            background: showForm ? '#FFFFFF' : 'linear-gradient(180deg, #07A96A 0%, #036F45 100%)',
+            border: showForm ? '1px solid #D0D5DD' : 'none',
+            color: showForm ? '#374151' : '#FFFFFF',
+            fontSize: '13.5px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: showForm ? 'none' : '0 1px 2px rgba(3, 111, 69, 0.35)',
+          }}
+        >
+          {showForm ? <X size={16} /> : <Plus size={16} />}
+          <span>{showForm ? 'Close form' : '+ Create Company'}</span>
         </button>
       </div>
 
-      {error && <div className="alert">{error}</div>}
+      {error && (
+        <div style={{ padding: '12px 16px', borderRadius: '12px', backgroundColor: '#FEECEC', color: '#DC2626', border: '1px solid #FECACA', fontSize: '13.5px', fontWeight: 600 }}>
+          {error}
+        </div>
+      )}
+
       {successMsg && (
-        <div className="alert" style={{ backgroundColor: '#DCFCE7', color: '#166534', borderColor: '#BBF7D0' }}>
+        <div style={{ padding: '12px 16px', borderRadius: '12px', backgroundColor: '#E8F7EE', color: '#16A34A', border: '1px solid #BBF7D0', fontSize: '13.5px', fontWeight: 600 }}>
           {successMsg}
         </div>
       )}
 
+      {/* 2. Create Company Panel (when opened) */}
       {showForm && (
-        <form className="panel form-grid" onSubmit={handleCreate}>
-          <h2>New company</h2>
-          <label>
-            Company name
-            <input value={form.name} onChange={(e) => updateField('name', e.target.value)} required />
-          </label>
-          <label>
-            Company email
-            <input type="email" value={form.email} onChange={(e) => updateField('email', e.target.value)} required />
-          </label>
-          <label>
-            Phone
-            <input value={form.phone} onChange={(e) => updateField('phone', e.target.value)} />
-          </label>
-          <label>
-            Industry
-            <input value={form.industry} onChange={(e) => updateField('industry', e.target.value)} />
-          </label>
-          <label>
-            City
-            <input value={form.city} onChange={(e) => updateField('city', e.target.value)} />
-          </label>
-          <label>
-            State
-            <input value={form.state} onChange={(e) => updateField('state', e.target.value)} />
-          </label>
-          <label>
-            Plan
-            <select
-              value={form.plan_id}
-              onChange={(e) => {
-                const val = e.target.value;
-                setForm((f) => ({
-                  ...f,
-                  plan_id: val,
-                  status: val === '' ? 'trial' : (f.status === 'trial' ? 'active' : f.status),
-                }));
-              }}
-            >
-              <option value="">Trial</option>
-              {plans.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — {money(p.price_monthly)}/mo
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Billing cycle
-            <select value={form.billing_cycle} onChange={(e) => updateField('billing_cycle', e.target.value)}>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-            </select>
-          </label>
-          {form.plan_id !== '' && (
-            <label>
-              Status
-              <select value={form.status} onChange={(e) => updateField('status', e.target.value)}>
-                <option value="active">Active</option>
-                <option value="suspended">Suspended</option>
-              </select>
-            </label>
-          )}
-          <label>
-            Admin name
-            <input value={form.admin_name} onChange={(e) => updateField('admin_name', e.target.value)} required />
-          </label>
-          <label>
-            Admin email
-            <input
-              type="email"
-              value={form.admin_email}
-              onChange={(e) => updateField('admin_email', e.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Admin password
-            <input
-              type="password"
-              value={form.admin_password}
-              onChange={(e) => updateField('admin_password', e.target.value)}
-              required
-              minLength={6}
-            />
-          </label>
-          <label className="full">
-            Notes
-            <textarea value={form.notes} onChange={(e) => updateField('notes', e.target.value)} rows={3} />
-          </label>
-          <div className="full form-actions">
-            <button type="submit" className="primary-btn" disabled={busy}>
-              {busy ? 'Creating…' : 'Create company'}
-            </button>
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', padding: '24px', boxShadow: '0 1px 3px rgba(16,24,40,0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #F3F4F6', paddingBottom: '14px' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#E8F8F0', color: '#07A96A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Building2 size={18} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#111827', margin: 0 }}>Create New Company Tenant</h3>
+              <p style={{ fontSize: '12.5px', color: '#6B7280', margin: '2px 0 0 0' }}>Provision workspace, seed credentials, and configure quotas.</p>
+            </div>
           </div>
-        </form>
+
+          <form onSubmit={handleCreate}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+              <div>
+                <label className="sa-field-label">Company Name *</label>
+                <input value={form.name} onChange={(e) => updateField('name', e.target.value)} required placeholder="Acme Infotech Pvt Ltd" className="sa-form-input" />
+              </div>
+              <div>
+                <label className="sa-field-label">Company Email *</label>
+                <input type="email" value={form.email} onChange={(e) => updateField('email', e.target.value)} required placeholder="contact@acme.com" className="sa-form-input" />
+              </div>
+              <div>
+                <label className="sa-field-label">Phone</label>
+                <input value={form.phone} onChange={(e) => updateField('phone', e.target.value)} placeholder="+91 9876543210" className="sa-form-input" />
+              </div>
+              <div>
+                <label className="sa-field-label">Industry</label>
+                <input value={form.industry} onChange={(e) => updateField('industry', e.target.value)} placeholder="Real Estate, SaaS, Manufacturing" className="sa-form-input" />
+              </div>
+              <div>
+                <label className="sa-field-label">City</label>
+                <input value={form.city} onChange={(e) => updateField('city', e.target.value)} placeholder="Mumbai, Bengaluru, Noida" className="sa-form-input" />
+              </div>
+              <div>
+                <label className="sa-field-label">State</label>
+                <input value={form.state} onChange={(e) => updateField('state', e.target.value)} placeholder="Maharashtra, Karnataka, UP" className="sa-form-input" />
+              </div>
+              <div>
+                <label className="sa-field-label">Subscription Plan</label>
+                <select
+                  value={form.plan_id}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setForm((f) => ({
+                      ...f,
+                      plan_id: val,
+                      status: val === '' ? 'trial' : f.status === 'trial' ? 'active' : f.status,
+                    }));
+                  }}
+                  className="sa-form-input"
+                >
+                  <option value="">Trial Plan</option>
+                  {plans.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} — {money(p.price_monthly)}/mo
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="sa-field-label">Billing Cycle</label>
+                <select value={form.billing_cycle} onChange={(e) => updateField('billing_cycle', e.target.value)} className="sa-form-input">
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </div>
+              {form.plan_id !== '' && (
+                <div>
+                  <label className="sa-field-label">Initial Status</label>
+                  <select value={form.status} onChange={(e) => updateField('status', e.target.value)} className="sa-form-input">
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="sa-field-label">Primary Admin Name *</label>
+                <input value={form.admin_name} onChange={(e) => updateField('admin_name', e.target.value)} required placeholder="Rohan Sharma" className="sa-form-input" />
+              </div>
+              <div>
+                <label className="sa-field-label">Admin Email *</label>
+                <input type="email" value={form.admin_email} onChange={(e) => updateField('admin_email', e.target.value)} required placeholder="admin@acme.com" className="sa-form-input" />
+              </div>
+              <div>
+                <label className="sa-field-label">Admin Password *</label>
+                <input type="password" value={form.admin_password} onChange={(e) => updateField('admin_password', e.target.value)} required minLength={6} placeholder="Min 6 characters" className="sa-form-input" />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label className="sa-field-label">Internal Operational Notes</label>
+              <textarea
+                value={form.notes}
+                onChange={(e) => updateField('notes', e.target.value)}
+                rows={2}
+                placeholder="Client requirements, payment terms, or sales rep notes..."
+                className="sa-form-input"
+                style={{ height: 'auto', padding: '10px 12px' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                style={{
+                  height: '38px',
+                  padding: '0 16px',
+                  borderRadius: '10px',
+                  border: '1px solid #D0D5DD',
+                  backgroundColor: '#FFFFFF',
+                  color: '#374151',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={busy}
+                style={{
+                  height: '38px',
+                  padding: '0 20px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: 'linear-gradient(180deg, #07A96A 0%, #036F45 100%)',
+                  color: '#FFFFFF',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: busy ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 1px 2px rgba(3, 111, 69, 0.35)',
+                }}
+              >
+                {busy ? 'Creating Tenant…' : 'Create Company'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
-      <div className="gov-table-stack">
-        <div className="gov-table-toolbar">
-          <div className="gov-table-title">Company Master List</div>
-          <div className="gov-table-tools">
-            <label>
-              Search
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Name / email / city / admin"
-              />
-            </label>
-            <span>
-              Total records: <strong>{filtered.length}</strong>
-            </span>
-          </div>
+      {/* 3. Toolbar & Search */}
+      <div
+        style={{
+          backgroundColor: '#FFFFFF',
+          border: '1px solid #E6E9EE',
+          borderRadius: '14px',
+          padding: '12px 18px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+          boxShadow: '0 1px 2px rgba(16,24,40,0.02)',
+        }}
+      >
+        <div style={{ position: 'relative', flex: '1 1 280px', maxWidth: '420px' }}>
+          <Search size={15} color="#9CA3AF" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search company name, email, city, admin..."
+            style={{
+              width: '100%',
+              height: '36px',
+              padding: '0 12px 0 34px',
+              borderRadius: '8px',
+              border: '1px solid #D0D5DD',
+              fontSize: '13px',
+              color: '#111827',
+              outline: 'none',
+            }}
+          />
         </div>
 
-        <div className="gov-table-wrap">
-        <div className="gov-table-scroll">
-          <table className="gov-table">
+        <div style={{ fontSize: '13px', color: '#6B7280' }}>
+          Total records: <strong style={{ color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{filtered.length}</strong>
+        </div>
+      </div>
+
+      {/* 4. High-Density Enterprise Table */}
+      <div
+        style={{
+          backgroundColor: '#FFFFFF',
+          border: '1px solid #E6E9EE',
+          borderRadius: '18px',
+          overflow: 'hidden',
+          boxShadow: '0 1px 3px rgba(16,24,40,0.02)',
+        }}
+      >
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', minWidth: '1000px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
-              <tr>
-                <th>S.No</th>
-                <th>Company Name</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Industry</th>
-                <th>Location</th>
-                <th>Plan</th>
-                <th>Billing</th>
-                <th>Status</th>
-                <th>Team</th>
-                <th>Ends On</th>
-                <th>Admin</th>
-                <th>Actions</th>
+              <tr
+                style={{
+                  backgroundColor: '#F9FAFB',
+                  borderBottom: '1px solid #E6E9EE',
+                  color: '#6B7280',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <th style={{ padding: '12px 16px', width: '60px' }}>#</th>
+                <th style={{ padding: '12px 16px', minWidth: '190px' }}>COMPANY</th>
+                <th style={{ padding: '12px 16px', minWidth: '170px' }}>CONTACT</th>
+                <th style={{ padding: '12px 16px', minWidth: '130px' }}>LOCATION</th>
+                <th style={{ padding: '12px 16px', minWidth: '120px' }}>PLAN</th>
+                <th style={{ padding: '12px 16px', minWidth: '90px' }}>CYCLE</th>
+                <th style={{ padding: '12px 16px', minWidth: '100px' }}>STATUS</th>
+                <th style={{ padding: '12px 16px', minWidth: '70px', textAlign: 'center' }}>SEATS</th>
+                <th style={{ padding: '12px 16px', minWidth: '110px' }}>EXPIRY</th>
+                <th style={{ padding: '12px 16px', textAlign: 'right', minWidth: '220px' }}>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
-              {pageRows.length === 0 && (
+              {pageRows.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="gov-empty">
-                    No company records found.
+                  <td colSpan={10} style={{ padding: '40px 16px', textAlign: 'center', color: '#9CA3AF' }}>
+                    No company tenant records match your criteria.
                   </td>
                 </tr>
-              )}
+              ) : (
+                pageRows.map((c, index) => {
+                  const isOpen = expandedId === c.id;
+                  const initial = (c.name?.charAt(0) || 'C').toUpperCase();
 
-              {pageRows.map((c, index) => {
-                const isOpen = expandedId === c.id;
-                return (
-                  <Fragment key={c.id}>
-                    <tr className={isOpen ? 'gov-row-open' : index % 2 === 1 ? 'gov-row-alt' : ''}>
-                      <td>{pageStart + index + 1}</td>
-                      <td className="gov-strong">{c.name}</td>
-                      <td>{c.email}</td>
-                      <td>{c.phone || '—'}</td>
-                      <td>{c.industry || '—'}</td>
-                      <td>{[c.city, c.state].filter(Boolean).join(', ') || '—'}</td>
-                      <td>{c.plan_name || 'Trial'}</td>
-                      <td style={{ textTransform: 'capitalize' }}>{c.billing_cycle || '—'}</td>
-                      <td>
-                        <span className={`badge badge-${c.status}`}>{c.status}</span>
-                      </td>
-                      <td>{c.salesperson_count}</td>
-                      <td>{formatDate(c.subscription_end)}</td>
-                      <td>
-                        {c.admin_name || '—'}
-                        {c.admin_email ? <small className="gov-sub">{c.admin_email}</small> : null}
-                      </td>
-                      <td>
-                        <div className="gov-actions">
-                          <button
-                            type="button"
-                            className="gov-btn"
-                            onClick={() => toggleActions(c)}
-                            disabled={busy && expandedId === c.id}
-                          >
-                            {isOpen ? 'Hide' : 'Manage'}
-                          </button>
-                          <button
-                            type="button"
-                            className="gov-btn"
-                            style={{ color: '#2563EB', borderColor: '#BFDBFE', backgroundColor: '#EFF6FF', fontWeight: 700 }}
-                            onClick={() => openEditModal(c)}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            className="gov-btn gov-btn-primary"
-                            disabled={!c.slug || ['suspended', 'cancelled'].includes(c.status)}
-                            onClick={() => window.open(`/c/${c.slug}/login`, '_blank', 'noopener,noreferrer')}
-                          >
-                            Login
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                  return (
+                    <Fragment key={c.id}>
+                      <tr
+                        style={{
+                          borderBottom: '1px solid #F3F4F6',
+                          backgroundColor: isOpen ? '#F9FAFB' : index % 2 === 1 ? '#FAFBFC' : '#FFFFFF',
+                          transition: 'background-color 0.15s ease',
+                        }}
+                      >
+                        <td style={{ padding: '12px 16px', color: '#9CA3AF', fontVariantNumeric: 'tabular-nums' }}>
+                          {pageStart + index + 1}
+                        </td>
 
-                    {isOpen && (
-                      <tr className="gov-detail-row">
-                        <td colSpan={13}>
-                          {!detail || detail.company.id !== c.id ? (
-                            <p className="muted">Loading company details…</p>
-                          ) : (
-                            <div className="gov-detail-box">
-                              <div className="gov-detail-grid">
-                                <div>
-                                  <span>Company</span>
-                                  <strong>{detail.company.name}</strong>
-                                </div>
-                                <div>
-                                  <span>Email</span>
-                                  <strong>{detail.company.email}</strong>
-                                </div>
-                                <div>
-                                  <span>Phone</span>
-                                  <strong>{detail.company.phone || '—'}</strong>
-                                </div>
-                                <div>
-                                  <span>Industry</span>
-                                  <strong>{detail.company.industry || '—'}</strong>
-                                </div>
-                                <div>
-                                  <span>Location</span>
-                                  <strong>
-                                    {[detail.company.city, detail.company.state, detail.company.country]
-                                      .filter(Boolean)
-                                      .join(', ') || '—'}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span>Plan</span>
-                                  <strong>{detail.company.plan_name || 'Trial'}</strong>
-                                </div>
-                                <div>
-                                  <span>Billing cycle</span>
-                                  <strong>{detail.company.billing_cycle || '—'}</strong>
-                                </div>
-                                <div>
-                                  <span>Subscription start</span>
-                                  <strong>{formatDate(detail.company.subscription_start)}</strong>
-                                </div>
-                                <div>
-                                  <span>Subscription end</span>
-                                  <strong>{formatDate(detail.company.subscription_end)}</strong>
-                                </div>
-                                <div>
-                                  <span>Status</span>
-                                  <strong className={`badge badge-${detail.company.status}`}>
-                                    {detail.company.status}
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span>Login URL</span>
-                                  <strong>
-                                    <a
-                                      href={`/c/${detail.company.slug}/login`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      style={{ textDecoration: 'underline' }}
-                                    >
-                                      /c/{detail.company.slug}/login
-                                    </a>
-                                  </strong>
-                                </div>
-                                <div>
-                                  <span>Notes</span>
-                                  <strong>{detail.company.notes || '—'}</strong>
-                                </div>
-                              </div>
+                        {/* Company Name with Avatar */}
+                        <td style={{ padding: '12px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span
+                              style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '10px',
+                                backgroundColor: '#E8F8F0',
+                                color: '#07A96A',
+                                fontWeight: 800,
+                                fontSize: '13px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {initial}
+                            </span>
+                            <div>
+                              <div style={{ fontWeight: 800, color: '#111827' }}>{c.name}</div>
+                              {c.industry && <div style={{ fontSize: '11px', color: '#6B7280' }}>{c.industry}</div>}
+                            </div>
+                          </div>
+                        </td>
 
-                              <div className="gov-detail-section">
-                                <h4>Status actions</h4>
-                                <div className="gov-actions">
+                        {/* Contact info */}
+                        <td style={{ padding: '12px 16px' }}>
+                          <div style={{ color: '#111827' }}>{c.email}</div>
+                          {c.phone && <div style={{ fontSize: '11px', color: '#6B7280' }}>{c.phone}</div>}
+                        </td>
+
+                        {/* Location */}
+                        <td style={{ padding: '12px 16px', color: '#4B5563' }}>
+                          {[c.city, c.state].filter(Boolean).join(', ') || '—'}
+                        </td>
+
+                        {/* Plan */}
+                        <td style={{ padding: '12px 16px', fontWeight: 700, color: '#111827' }}>
+                          {c.plan_name || 'Trial'}
+                        </td>
+
+                        {/* Billing Cycle */}
+                        <td style={{ padding: '12px 16px', textTransform: 'capitalize', color: '#4B5563' }}>
+                          {c.billing_cycle || '—'}
+                        </td>
+
+                        {/* Status */}
+                        <td style={{ padding: '12px 16px' }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: '9999px',
+                              backgroundColor:
+                                c.status === 'active'
+                                  ? '#E8F7EE'
+                                  : c.status === 'trial'
+                                  ? '#FEF7E1'
+                                  : c.status === 'suspended'
+                                  ? '#FEECEC'
+                                  : '#F1F3F6',
+                              color:
+                                c.status === 'active'
+                                  ? '#16A34A'
+                                  : c.status === 'trial'
+                                  ? '#A16207'
+                                  : c.status === 'suspended'
+                                  ? '#DC2626'
+                                  : '#4B5563',
+                              textTransform: 'capitalize',
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: '5px',
+                                height: '5px',
+                                borderRadius: '50%',
+                                backgroundColor:
+                                  c.status === 'active'
+                                    ? '#16A34A'
+                                    : c.status === 'trial'
+                                    ? '#A16207'
+                                    : c.status === 'suspended'
+                                    ? '#DC2626'
+                                    : '#4B5563',
+                              }}
+                            />
+                            {c.status}
+                          </span>
+                        </td>
+
+                        {/* Team Count */}
+                        <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                          {c.salesperson_count}
+                        </td>
+
+                        {/* Subscription End */}
+                        <td style={{ padding: '12px 16px', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', color: '#4B5563' }}>
+                          {formatDate(c.subscription_end)}
+                        </td>
+
+                        {/* Action Buttons */}
+                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => toggleActions(c)}
+                              disabled={busy && expandedId === c.id}
+                              style={{
+                                height: '30px',
+                                padding: '0 10px',
+                                borderRadius: '6px',
+                                border: '1px solid #D0D5DD',
+                                backgroundColor: '#FFFFFF',
+                                color: '#374151',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {isOpen ? 'Close' : 'Manage'}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(c)}
+                              style={{
+                                height: '30px',
+                                padding: '0 10px',
+                                borderRadius: '6px',
+                                border: '1px solid #BFDBFE',
+                                backgroundColor: '#EFF6FF',
+                                color: '#0B6BE6',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={!c.slug || ['suspended', 'cancelled'].includes(c.status)}
+                              onClick={() => window.open(`/c/${c.slug}/login`, '_blank', 'noopener,noreferrer')}
+                              style={{
+                                height: '30px',
+                                padding: '0 10px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                background: 'linear-gradient(180deg, #07A96A 0%, #036F45 100%)',
+                                color: '#FFFFFF',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                cursor: !c.slug || ['suspended', 'cancelled'].includes(c.status) ? 'not-allowed' : 'pointer',
+                                opacity: !c.slug || ['suspended', 'cancelled'].includes(c.status) ? 0.4 : 1,
+                              }}
+                            >
+                              Login
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Expanded Manage Accordion */}
+                      {isOpen && (
+                        <tr>
+                          <td colSpan={10} style={{ padding: '16px 20px', backgroundColor: '#F9FAFB', borderBottom: '1px solid #E6E9EE' }}>
+                            {!detail || detail.company.id !== c.id ? (
+                              <div style={{ padding: '16px', color: '#6B7280', fontSize: '13px' }}>Loading company telemetry…</div>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                {/* Key Details Grid */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '12px', border: '1px solid #E6E9EE' }}>
+                                  <div>
+                                    <span style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>Company</span>
+                                    <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#111827' }}>{detail.company.name}</div>
+                                  </div>
+                                  <div>
+                                    <span style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>Email</span>
+                                    <div style={{ fontSize: '13px', color: '#374151' }}>{detail.company.email}</div>
+                                  </div>
+                                  <div>
+                                    <span style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>Plan</span>
+                                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#07A96A' }}>{detail.company.plan_name || 'Trial'}</div>
+                                  </div>
+                                  <div>
+                                    <span style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>Subscription Start</span>
+                                    <div style={{ fontSize: '13px', color: '#374151' }}>{formatDate(detail.company.subscription_start)}</div>
+                                  </div>
+                                  <div>
+                                    <span style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>Subscription End</span>
+                                    <div style={{ fontSize: '13px', color: '#374151' }}>{formatDate(detail.company.subscription_end)}</div>
+                                  </div>
+                                  <div>
+                                    <span style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>Dedicated Login URL</span>
+                                    <div>
+                                      <a
+                                        href={`/c/${detail.company.slug}/login`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ color: '#0B6BE6', fontSize: '12.5px', fontWeight: 700, textDecoration: 'none' }}
+                                      >
+                                        /c/{detail.company.slug}/login ↗
+                                      </a>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Status & Management Actions */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                   <button
                                     type="button"
-                                    className="gov-btn"
-                                    style={{ backgroundColor: '#2563EB', color: '#FFFFFF', borderColor: '#2563EB', fontWeight: 700 }}
                                     onClick={() => openEditModal(detail.company)}
+                                    style={{
+                                      height: '32px',
+                                      padding: '0 12px',
+                                      borderRadius: '8px',
+                                      border: '1px solid #BFDBFE',
+                                      backgroundColor: '#EFF6FF',
+                                      color: '#0B6BE6',
+                                      fontSize: '12px',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
                                   >
-                                    ✏️ Edit Company Details
+                                    Edit Details
                                   </button>
+
                                   <button
                                     type="button"
-                                    className="gov-btn gov-btn-primary"
-                                    disabled={
-                                      !detail.company.slug ||
-                                      ['suspended', 'cancelled'].includes(detail.company.status)
-                                    }
-                                    onClick={() =>
-                                      window.open(
-                                        `/c/${detail.company.slug}/login`,
-                                        '_blank',
-                                        'noopener,noreferrer'
-                                      )
-                                    }
-                                  >
-                                    Open company login
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="gov-btn"
                                     onClick={() => changeStatus(detail.company.id, 'active')}
+                                    style={{
+                                      height: '32px',
+                                      padding: '0 12px',
+                                      borderRadius: '8px',
+                                      border: '1px solid #BBF7D0',
+                                      backgroundColor: '#E8F7EE',
+                                      color: '#16A34A',
+                                      fontSize: '12px',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
                                   >
                                     Activate
                                   </button>
+
                                   <button
                                     type="button"
-                                    className="gov-btn"
                                     onClick={() => changeStatus(detail.company.id, 'suspended')}
+                                    style={{
+                                      height: '32px',
+                                      padding: '0 12px',
+                                      borderRadius: '8px',
+                                      border: '1px solid #FECACA',
+                                      backgroundColor: '#FEECEC',
+                                      color: '#DC2626',
+                                      fontSize: '12px',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
                                   >
                                     Suspend
                                   </button>
+
                                   <button
                                     type="button"
-                                    className="gov-btn gov-btn-danger"
                                     onClick={() => changeStatus(detail.company.id, 'cancelled')}
+                                    style={{
+                                      height: '32px',
+                                      padding: '0 12px',
+                                      borderRadius: '8px',
+                                      border: '1px solid #D0D5DD',
+                                      backgroundColor: '#FFFFFF',
+                                      color: '#6B7280',
+                                      fontSize: '12px',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
                                   >
                                     Cancel
                                   </button>
+
                                   <button
                                     type="button"
-                                    className="gov-btn gov-btn-danger"
                                     onClick={() => deleteCompany(detail.company)}
+                                    style={{
+                                      height: '32px',
+                                      padding: '0 12px',
+                                      borderRadius: '8px',
+                                      border: '1px solid #FCA5A5',
+                                      backgroundColor: '#FFFFFF',
+                                      color: '#DC2626',
+                                      fontSize: '12px',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      marginLeft: 'auto',
+                                    }}
                                   >
-                                    Delete permanently
+                                    Delete Permanently
                                   </button>
                                 </div>
+
+                                {/* Active Users Table */}
+                                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E6E9EE', overflow: 'hidden' }}>
+                                  <div style={{ padding: '10px 14px', borderBottom: '1px solid #E6E9EE', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', color: '#6B7280', backgroundColor: '#F9FAFB' }}>
+                                    Registered Tenant Users ({detail.users.length})
+                                  </div>
+                                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+                                    <tbody>
+                                      {detail.users.map((u) => (
+                                        <tr key={u.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                                          <td style={{ padding: '8px 14px', fontWeight: 700, color: '#111827' }}>{u.name}</td>
+                                          <td style={{ padding: '8px 14px', color: '#4B5563' }}>{u.email}</td>
+                                          <td style={{ padding: '8px 14px', textTransform: 'capitalize', color: '#6B7280' }}>{u.role}</td>
+                                          <td style={{ padding: '8px 14px', textAlign: 'right' }}>
+                                            <span style={{ fontSize: '11px', fontWeight: 700, color: u.is_active ? '#16A34A' : '#9CA3AF' }}>
+                                              {u.is_active ? 'Active' : 'Inactive'}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                      {detail.users.length === 0 && (
+                                        <tr>
+                                          <td colSpan={4} style={{ padding: '16px', textAlign: 'center', color: '#9CA3AF' }}>
+                                            No user accounts registered under this tenant yet.
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
                               </div>
-
-
-
-                              <div className="gov-detail-section">
-                                <h4>Users</h4>
-                                <table className="gov-mini-table">
-                                  <thead>
-                                    <tr>
-                                      <th>Name</th>
-                                      <th>Email</th>
-                                      <th>Role</th>
-                                      <th>Status</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {detail.users.map((u) => (
-                                      <tr key={u.id}>
-                                        <td>{u.name}</td>
-                                        <td>{u.email}</td>
-                                        <td>{u.role}</td>
-                                        <td>{u.is_active ? 'Active' : 'Inactive'}</td>
-                                      </tr>
-                                    ))}
-                                    {detail.users.length === 0 && (
-                                      <tr>
-                                        <td colSpan={4}>No users yet.</td>
-                                      </tr>
-                                    )}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
 
-        <div className="gov-pagination">
-          <span>
-            Showing {showingFrom} to {showingTo} of {filtered.length} entries
-          </span>
-          <div className="gov-page-btns">
-            <button type="button" className="gov-btn" disabled={currentPage <= 1} onClick={() => setPage(1)}>
+        {/* 5. Pagination Footer */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '12px 18px',
+            backgroundColor: '#F9FAFB',
+            borderTop: '1px solid #E6E9EE',
+            flexWrap: 'wrap',
+            gap: '10px',
+          }}
+        >
+          <div style={{ fontSize: '12.5px', color: '#6B7280' }}>
+            Showing <strong style={{ color: '#111827' }}>{showingFrom}</strong> to <strong style={{ color: '#111827' }}>{showingTo}</strong> of{' '}
+            <strong style={{ color: '#111827' }}>{filtered.length}</strong> records
+          </div>
+
+          <div style={{ display: 'inline-flex', gap: '4px' }}>
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setPage(1)}
+              style={{
+                height: '30px',
+                padding: '0 8px',
+                borderRadius: '6px',
+                border: '1px solid #D0D5DD',
+                backgroundColor: '#FFFFFF',
+                color: currentPage <= 1 ? '#D1D5DB' : '#374151',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+              }}
+            >
               First
             </button>
             <button
               type="button"
-              className="gov-btn"
               disabled={currentPage <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
+              style={{
+                height: '30px',
+                padding: '0 8px',
+                borderRadius: '6px',
+                border: '1px solid #D0D5DD',
+                backgroundColor: '#FFFFFF',
+                color: currentPage <= 1 ? '#D1D5DB' : '#374151',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                cursor: currentPage <= 1 ? 'not-allowed' : 'pointer',
+              }}
             >
               Prev
             </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter((n) => n === 1 || n === totalPages || Math.abs(n - currentPage) <= 2)
-              .reduce((acc, n, idx, arr) => {
-                if (idx > 0 && n - arr[idx - 1] > 1) acc.push('…');
-                acc.push(n);
-                return acc;
-              }, [])
-              .map((n, idx) =>
-                n === '…' ? (
-                  <span key={`e-${idx}`} className="gov-ellipsis">
-                    …
-                  </span>
-                ) : (
-                  <button
-                    key={n}
-                    type="button"
-                    className={`gov-btn ${n === currentPage ? 'gov-btn-primary' : ''}`}
-                    onClick={() => setPage(n)}
-                  >
-                    {n}
-                  </button>
-                )
-              )}
+            <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0 10px', fontSize: '12px', fontWeight: 800, color: '#111827' }}>
+              {currentPage} / {totalPages}
+            </span>
             <button
               type="button"
-              className="gov-btn"
               disabled={currentPage >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              style={{
+                height: '30px',
+                padding: '0 8px',
+                borderRadius: '6px',
+                border: '1px solid #D0D5DD',
+                backgroundColor: '#FFFFFF',
+                color: currentPage >= totalPages ? '#D1D5DB' : '#374151',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+              }}
             >
               Next
             </button>
             <button
               type="button"
-              className="gov-btn"
               disabled={currentPage >= totalPages}
               onClick={() => setPage(totalPages)}
+              style={{
+                height: '30px',
+                padding: '0 8px',
+                borderRadius: '6px',
+                border: '1px solid #D0D5DD',
+                backgroundColor: '#FFFFFF',
+                color: currentPage >= totalPages ? '#D1D5DB' : '#374151',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+              }}
             >
               Last
             </button>
           </div>
         </div>
-        </div>
       </div>
 
-      {/* Edit Company Modal */}
+      {/* 6. Edit Company Modal */}
       {editingCompany && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(4px)',
+            backgroundColor: 'rgba(11, 17, 24, 0.45)',
+            backdropFilter: 'blur(3px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1.25rem',
+            zIndex: 100,
+            padding: '16px',
           }}
           onClick={(e) => {
             if (e.target === e.currentTarget && !editBusy) closeEditModal();
@@ -697,13 +1057,13 @@ export default function CompaniesPage() {
           <div
             style={{
               backgroundColor: '#FFFFFF',
-              borderRadius: '16px',
+              borderRadius: '20px',
               maxWidth: '680px',
               width: '100%',
               maxHeight: '90vh',
               overflowY: 'auto',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              border: '1px solid #E2E8F0',
+              boxShadow: '0 12px 32px -8px rgba(16, 24, 40, 0.18)',
+              border: '1px solid #E6E9EE',
               display: 'flex',
               flexDirection: 'column',
             }}
@@ -711,22 +1071,20 @@ export default function CompaniesPage() {
             {/* Modal Header */}
             <div
               style={{
-                padding: '1.25rem 1.5rem',
-                borderBottom: '1px solid #E2E8F0',
+                padding: '18px 24px',
+                borderBottom: '1px solid #E6E9EE',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                backgroundColor: '#F8FAFC',
-                borderTopLeftRadius: '16px',
-                borderTopRightRadius: '16px',
+                backgroundColor: '#F9FAFB',
               }}
             >
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0F172A' }}>
+                <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#111827' }}>
                   Edit Company Details
                 </h3>
-                <p style={{ margin: '3px 0 0', fontSize: '0.8rem', color: '#64748B' }}>
-                  Updating company ID #{editingCompany.id}: {editingCompany.name}
+                <p style={{ margin: '2px 0 0', fontSize: '12.5px', color: '#6B7280' }}>
+                  Updating company #{editingCompany.id}: {editingCompany.name}
                 </p>
               </div>
               <button
@@ -736,315 +1094,152 @@ export default function CompaniesPage() {
                 style={{
                   background: 'none',
                   border: 'none',
-                  fontSize: '1.2rem',
-                  color: '#64748B',
+                  color: '#6B7280',
                   cursor: 'pointer',
-                  padding: '4px 8px',
-                  borderRadius: '6px',
+                  padding: '4px',
                 }}
               >
-                ✕
+                <X size={18} />
               </button>
             </div>
 
-            {/* Modal Body / Form */}
-            <form onSubmit={handleSaveEdit} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Modal Body */}
+            <form onSubmit={handleSaveEdit} style={{ padding: '24px' }}>
               {editError && (
-                <div style={{ padding: '0.75rem 1rem', borderRadius: '8px', backgroundColor: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', fontSize: '0.85rem' }}>
+                <div style={{ padding: '10px 14px', borderRadius: '10px', backgroundColor: '#FEECEC', color: '#DC2626', fontSize: '13px', fontWeight: 600, marginBottom: '16px' }}>
                   {editError}
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                  Company Name *
-                  <input
-                    type="text"
-                    value={editForm.name}
-                    onChange={(e) => updateEditField('name', e.target.value)}
-                    required
-                    style={{
-                      height: '38px',
-                      padding: '0 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.88rem',
-                      outline: 'none',
-                    }}
-                  />
-                </label>
-
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                  Slug (Login Path) *
-                  <input
-                    type="text"
-                    value={editForm.slug}
-                    onChange={(e) => updateEditField('slug', e.target.value)}
-                    required
-                    placeholder="e.g. surfsync"
-                    style={{
-                      height: '38px',
-                      padding: '0 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.88rem',
-                      outline: 'none',
-                    }}
-                  />
-                  <small style={{ fontSize: '0.72rem', color: '#2563EB', fontWeight: 600 }}>
-                    Login URL: /c/{editForm.slug || 'slug'}/login
-                  </small>
-                </label>
-
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                  Official Email *
-                  <input
-                    type="email"
-                    value={editForm.email}
-                    onChange={(e) => updateEditField('email', e.target.value)}
-                    required
-                    style={{
-                      height: '38px',
-                      padding: '0 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.88rem',
-                      outline: 'none',
-                    }}
-                  />
-                </label>
-
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                  Phone Number
-                  <input
-                    type="tel"
-                    value={editForm.phone}
-                    onChange={(e) => updateEditField('phone', e.target.value)}
-                    style={{
-                      height: '38px',
-                      padding: '0 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.88rem',
-                      outline: 'none',
-                    }}
-                  />
-                </label>
-
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                  Industry
-                  <input
-                    type="text"
-                    value={editForm.industry}
-                    onChange={(e) => updateEditField('industry', e.target.value)}
-                    placeholder="e.g. IT & Software Services"
-                    style={{
-                      height: '38px',
-                      padding: '0 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.88rem',
-                      outline: 'none',
-                    }}
-                  />
-                </label>
-
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                  Status
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+                <div>
+                  <label className="sa-field-label">Company Name *</label>
+                  <input value={editForm.name} onChange={(e) => updateEditField('name', e.target.value)} required className="sa-form-input" />
+                </div>
+                <div>
+                  <label className="sa-field-label">Company Email *</label>
+                  <input type="email" value={editForm.email} onChange={(e) => updateEditField('email', e.target.value)} required className="sa-form-input" />
+                </div>
+                <div>
+                  <label className="sa-field-label">Phone</label>
+                  <input value={editForm.phone} onChange={(e) => updateEditField('phone', e.target.value)} className="sa-form-input" />
+                </div>
+                <div>
+                  <label className="sa-field-label">Industry</label>
+                  <input value={editForm.industry} onChange={(e) => updateEditField('industry', e.target.value)} className="sa-form-input" />
+                </div>
+                <div>
+                  <label className="sa-field-label">City</label>
+                  <input value={editForm.city} onChange={(e) => updateEditField('city', e.target.value)} className="sa-form-input" />
+                </div>
+                <div>
+                  <label className="sa-field-label">State</label>
+                  <input value={editForm.state} onChange={(e) => updateEditField('state', e.target.value)} className="sa-form-input" />
+                </div>
+                <div>
+                  <label className="sa-field-label">Plan</label>
                   <select
-                    value={editForm.status}
-                    onChange={(e) => updateEditField('status', e.target.value)}
-                    style={{
-                      height: '38px',
-                      padding: '0 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.88rem',
-                      outline: 'none',
-                      backgroundColor: '#FFFFFF',
-                    }}
-                  >
-                    <option value="active">Active</option>
-                    <option value="trial">Trial</option>
-                    <option value="suspended">Suspended</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                </label>
-
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                  City
-                  <input
-                    type="text"
-                    value={editForm.city}
-                    onChange={(e) => updateEditField('city', e.target.value)}
-                    style={{
-                      height: '38px',
-                      padding: '0 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.88rem',
-                      outline: 'none',
-                    }}
-                  />
-                </label>
-
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                  State
-                  <input
-                    type="text"
-                    value={editForm.state}
-                    onChange={(e) => updateEditField('state', e.target.value)}
-                    style={{
-                      height: '38px',
-                      padding: '0 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.88rem',
-                      outline: 'none',
-                    }}
-                  />
-                </label>
-
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                  Subscription Plan
-                  <select
-                    value={editForm.plan_id || ''}
+                    value={editForm.plan_id}
                     onChange={(e) => updateEditField('plan_id', e.target.value)}
-                    style={{
-                      height: '38px',
-                      padding: '0 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.88rem',
-                      outline: 'none',
-                      backgroundColor: '#FFFFFF',
-                    }}
+                    className="sa-form-input"
                   >
-                    <option value="">No Plan / Trial</option>
+                    <option value="">Trial Plan</option>
                     {plans.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name} ({money(p.price_monthly)}/mo)
+                        {p.name} — {money(p.price_monthly)}/mo
                       </option>
                     ))}
                   </select>
-                </label>
-
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                  Billing Cycle
+                </div>
+                <div>
+                  <label className="sa-field-label">Billing Cycle</label>
                   <select
-                    value={editForm.billing_cycle || 'monthly'}
+                    value={editForm.billing_cycle}
                     onChange={(e) => updateEditField('billing_cycle', e.target.value)}
-                    style={{
-                      height: '38px',
-                      padding: '0 12px',
-                      borderRadius: '8px',
-                      border: '1px solid #CBD5E1',
-                      fontSize: '0.88rem',
-                      outline: 'none',
-                      backgroundColor: '#FFFFFF',
-                    }}
+                    className="sa-form-input"
                   >
                     <option value="monthly">Monthly</option>
                     <option value="yearly">Yearly</option>
                   </select>
-                </label>
-              </div>
-
-              {/* Administrator Account Section */}
-              <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: '1rem', marginTop: '0.25rem' }}>
-                <h4 style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0F172A', margin: '0 0 0.75rem 0' }}>
-                  Company Administrator Account
-                </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                    Admin Full Name
-                    <input
-                      type="text"
-                      value={editForm.admin_name || ''}
-                      onChange={(e) => updateEditField('admin_name', e.target.value)}
-                      placeholder="e.g. Kritika"
-                      style={{
-                        height: '38px',
-                        padding: '0 12px',
-                        borderRadius: '8px',
-                        border: '1px solid #CBD5E1',
-                        fontSize: '0.88rem',
-                        outline: 'none',
-                      }}
-                    />
-                  </label>
-
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                    Admin Login Email *
-                    <input
-                      type="email"
-                      value={editForm.admin_email || ''}
-                      onChange={(e) => updateEditField('admin_email', e.target.value)}
-                      placeholder="e.g. info@surfsyncinfotech.in"
-                      style={{
-                        height: '38px',
-                        padding: '0 12px',
-                        borderRadius: '8px',
-                        border: '1px solid #CBD5E1',
-                        fontSize: '0.88rem',
-                        outline: 'none',
-                      }}
-                    />
-                  </label>
-
-                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                    Reset Admin Password (Optional)
-                    <input
-                      type="password"
-                      value={editForm.admin_password || ''}
-                      onChange={(e) => updateEditField('admin_password', e.target.value)}
-                      placeholder="Leave blank to keep existing password"
-                      style={{
-                        height: '38px',
-                        padding: '0 12px',
-                        borderRadius: '8px',
-                        border: '1px solid #CBD5E1',
-                        fontSize: '0.88rem',
-                        outline: 'none',
-                      }}
-                    />
-                  </label>
+                </div>
+                <div>
+                  <label className="sa-field-label">Status</label>
+                  <select
+                    value={editForm.status}
+                    onChange={(e) => updateEditField('status', e.target.value)}
+                    className="sa-form-input"
+                  >
+                    <option value="trial">Trial</option>
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="sa-field-label">Admin Name</label>
+                  <input value={editForm.admin_name} onChange={(e) => updateEditField('admin_name', e.target.value)} className="sa-form-input" />
+                </div>
+                <div>
+                  <label className="sa-field-label">Admin Email</label>
+                  <input type="email" value={editForm.admin_email} onChange={(e) => updateEditField('admin_email', e.target.value)} className="sa-form-input" />
+                </div>
+                <div>
+                  <label className="sa-field-label">New Password (leave blank to keep)</label>
+                  <input
+                    type="password"
+                    value={editForm.admin_password}
+                    onChange={(e) => updateEditField('admin_password', e.target.value)}
+                    placeholder="Leave empty to keep unchanged"
+                    className="sa-form-input"
+                  />
                 </div>
               </div>
 
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                Notes / Internal Remarks
+              <div style={{ marginBottom: '20px' }}>
+                <label className="sa-field-label">Notes</label>
                 <textarea
                   value={editForm.notes}
                   onChange={(e) => updateEditField('notes', e.target.value)}
                   rows={2}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid #CBD5E1',
-                    fontSize: '0.88rem',
-                    outline: 'none',
-                    resize: 'vertical',
-                  }}
+                  className="sa-form-input"
+                  style={{ height: 'auto', padding: '10px 12px' }}
                 />
-              </label>
+              </div>
 
-              {/* Modal Actions */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '0.5rem', borderTop: '1px solid #F1F5F9', paddingTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid #E6E9EE', paddingTop: '16px' }}>
                 <button
                   type="button"
                   onClick={closeEditModal}
                   disabled={editBusy}
-                  className="gov-btn"
-                  style={{ padding: '0.55rem 1.25rem' }}
+                  style={{
+                    height: '38px',
+                    padding: '0 16px',
+                    borderRadius: '10px',
+                    border: '1px solid #D0D5DD',
+                    backgroundColor: '#FFFFFF',
+                    color: '#374151',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={editBusy}
-                  className="gov-btn gov-btn-primary"
-                  style={{ padding: '0.55rem 1.5rem', backgroundColor: '#F68713', borderColor: '#F68713', color: '#FFFFFF', fontWeight: 700 }}
+                  style={{
+                    height: '38px',
+                    padding: '0 20px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: 'linear-gradient(180deg, #07A96A 0%, #036F45 100%)',
+                    color: '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: editBusy ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 1px 2px rgba(3, 111, 69, 0.35)',
+                  }}
                 >
                   {editBusy ? 'Saving Changes…' : 'Save Changes'}
                 </button>

@@ -1,6 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { dashboardApi } from '../api/client';
+import {
+  Building2,
+  CheckCircle2,
+  Clock,
+  TrendingUp,
+  CreditCard,
+  AlertTriangle,
+  ArrowRight,
+  Shield,
+  Layers,
+  Sparkles,
+  Plus,
+} from 'lucide-react';
 
 function money(n) {
   return new Intl.NumberFormat('en-IN', {
@@ -14,10 +27,9 @@ function formatDate(value) {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value).slice(0, 10);
-  return d.toLocaleDateString('en-IN');
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-// Helper to generate bezier path for smooth line chart
 function getBezierPath(points) {
   if (points.length < 2) return '';
   let path = `M ${points[0].x} ${points[0].y}`;
@@ -33,44 +45,41 @@ function getBezierPath(points) {
   return path;
 }
 
-// 1. Premium Donut Chart Component
+// 1. Company Status Donut Chart
 function DonutChart({ active = 0, inactive = 0, trial = 0 }) {
   const total = active + inactive + trial;
-  if (total === 0) return <div style={{ height: '160px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'var(--muted)' }}>No data available</div>;
+  if (total === 0) {
+    return (
+      <div style={{ height: '180px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#9CA3AF', fontSize: '13px' }}>
+        No tenant records available
+      </div>
+    );
+  }
 
   const pctActive = (active / total) * 100;
-  const pctInactive = (inactive / total) * 100;
   const pctTrial = (trial / total) * 100;
+  const pctInactive = (inactive / total) * 100;
 
   const radius = 38;
-  const circumference = 2 * Math.PI * radius; // ~238.76
+  const circumference = 2 * Math.PI * radius;
 
   const strokeActive = (pctActive / 100) * circumference;
   const strokeTrial = (pctTrial / 100) * circumference;
   const strokeInactive = (pctInactive / 100) * circumference;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem', width: '100%' }}>
-      <div style={{ position: 'relative', width: '130px', height: '130px' }}>
-        <svg width="130" height="130" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)', overflow: 'visible' }}>
-          {/* Shadow filters for glow effect */}
-          <defs>
-            <filter id="donut-shadow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="var(--ink)" floodOpacity="0.06" />
-            </filter>
-          </defs>
-          
-          {/* Base track */}
-          <circle cx="50" cy="50" r={radius} fill="transparent" stroke="#fdfbf9" strokeWidth="10" />
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', width: '100%' }}>
+      <div style={{ position: 'relative', width: '140px', height: '140px' }}>
+        <svg width="140" height="140" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)', overflow: 'visible' }}>
+          <circle cx="50" cy="50" r={radius} fill="transparent" stroke="#F1F3F6" strokeWidth="10" />
 
-          {/* Inactive Slice */}
           {strokeInactive > 0 && (
             <circle
               cx="50"
               cy="50"
               r={radius}
               fill="transparent"
-              stroke="var(--line-strong)"
+              stroke="#D0D5DD"
               strokeWidth="9"
               strokeDasharray={`${strokeInactive} ${circumference - strokeInactive}`}
               strokeDashoffset={-(strokeActive + strokeTrial)}
@@ -78,14 +87,13 @@ function DonutChart({ active = 0, inactive = 0, trial = 0 }) {
             />
           )}
 
-          {/* Trial Slice */}
           {strokeTrial > 0 && (
             <circle
               cx="50"
               cy="50"
               r={radius}
               fill="transparent"
-              stroke="var(--green-500)"
+              stroke="#0B6BE6"
               strokeWidth="9"
               strokeDasharray={`${strokeTrial} ${circumference - strokeTrial}`}
               strokeDashoffset={-strokeActive}
@@ -93,42 +101,38 @@ function DonutChart({ active = 0, inactive = 0, trial = 0 }) {
             />
           )}
 
-          {/* Active Slice */}
           {strokeActive > 0 && (
             <circle
               cx="50"
               cy="50"
               r={radius}
               fill="transparent"
-              stroke="var(--cyan)"
+              stroke="#07A96A"
               strokeWidth="9"
               strokeDasharray={`${strokeActive} ${circumference - strokeActive}`}
               strokeDashoffset="0"
-              filter="url(#donut-shadow)"
               style={{ transition: 'stroke-dasharray 0.5s ease-out' }}
             />
           )}
         </svg>
-        
-        {/* Center label */}
+
         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
-          <span style={{ fontSize: '1.65rem', fontWeight: '800', color: 'var(--ink)', display: 'block', lineHeight: 1 }}>{total}</span>
-          <span style={{ fontSize: '0.65rem', fontWeight: '700', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
+          <span style={{ fontSize: '24px', fontWeight: 800, color: '#111827', display: 'block', lineHeight: 1 }}>{total}</span>
+          <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
         </div>
       </div>
-      
-      {/* Legend */}
-      <div style={{ display: 'flex', gap: '0.85rem', justifyContent: 'center', fontSize: '0.8rem', flexWrap: 'wrap', borderTop: '1px solid var(--line)', paddingTop: '0.75rem', width: '100%' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: '600', color: 'var(--ink-soft)' }}>
-          <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: 'var(--cyan)', borderRadius: '50%' }} />
+
+      <div style={{ display: 'flex', gap: '14px', justifyContent: 'center', fontSize: '12.5px', flexWrap: 'wrap', borderTop: '1px solid #E6E9EE', paddingTop: '12px', width: '100%' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 600, color: '#374151' }}>
+          <span style={{ width: '8px', height: '8px', backgroundColor: '#07A96A', borderRadius: '50%' }} />
           Active ({active})
         </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: '600', color: 'var(--ink-soft)' }}>
-          <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: 'var(--green-500)', borderRadius: '50%' }} />
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 600, color: '#374151' }}>
+          <span style={{ width: '8px', height: '8px', backgroundColor: '#0B6BE6', borderRadius: '50%' }} />
           Trial ({trial})
         </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: '600', color: 'var(--ink-soft)' }}>
-          <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: 'var(--line-strong)', borderRadius: '50%' }} />
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 600, color: '#374151' }}>
+          <span style={{ width: '8px', height: '8px', backgroundColor: '#D0D5DD', borderRadius: '50%' }} />
           Inactive ({inactive})
         </span>
       </div>
@@ -136,39 +140,36 @@ function DonutChart({ active = 0, inactive = 0, trial = 0 }) {
   );
 }
 
-// 2. Premium Invoice Donut Chart Component
+// 2. Invoice Status Donut Chart
 function InvoiceDonutChart({ paid = 0, pending = 0 }) {
   const total = paid + pending;
-  if (total === 0) return <div style={{ height: '160px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'var(--muted)' }}>No data available</div>;
+  if (total === 0) {
+    return (
+      <div style={{ height: '180px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#9CA3AF', fontSize: '13px' }}>
+        No invoice records available
+      </div>
+    );
+  }
 
   const pctPaid = (paid / total) * 100;
-  const pctPending = (pending / total) * 100;
-
   const radius = 38;
-  const circumference = 2 * Math.PI * radius; // ~238.76
-
+  const circumference = 2 * Math.PI * radius;
   const strokePaid = (pctPaid / 100) * circumference;
-  const strokePending = (pctPending / 100) * circumference;
+  const strokePending = circumference - strokePaid;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem', width: '100%' }}>
-      <div style={{ position: 'relative', width: '130px', height: '130px' }}>
-        <svg width="130" height="130" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)', overflow: 'visible' }}>
-          <defs>
-            <filter id="donut-shadow-inv" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="var(--cyan)" floodOpacity="0.06" />
-            </filter>
-          </defs>
-          <circle cx="50" cy="50" r={radius} fill="transparent" stroke="#fdfbf9" strokeWidth="10" />
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', width: '100%' }}>
+      <div style={{ position: 'relative', width: '140px', height: '140px' }}>
+        <svg width="140" height="140" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)', overflow: 'visible' }}>
+          <circle cx="50" cy="50" r={radius} fill="transparent" stroke="#F1F3F6" strokeWidth="10" />
 
-          {/* Pending Slice */}
           {strokePending > 0 && (
             <circle
               cx="50"
               cy="50"
               r={radius}
               fill="transparent"
-              stroke="var(--green-500)"
+              stroke="#CA8A04"
               strokeWidth="9"
               strokeDasharray={`${strokePending} ${circumference - strokePending}`}
               strokeDashoffset={-strokePaid}
@@ -176,35 +177,34 @@ function InvoiceDonutChart({ paid = 0, pending = 0 }) {
             />
           )}
 
-          {/* Paid Slice */}
           {strokePaid > 0 && (
             <circle
               cx="50"
               cy="50"
               r={radius}
               fill="transparent"
-              stroke="var(--cyan)"
+              stroke="#07A96A"
               strokeWidth="9"
               strokeDasharray={`${strokePaid} ${circumference - strokePaid}`}
               strokeDashoffset="0"
-              filter="url(#donut-shadow-inv)"
               style={{ transition: 'stroke-dasharray 0.5s ease-out' }}
             />
           )}
         </svg>
+
         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
-          <span style={{ fontSize: '1.65rem', fontWeight: '800', color: 'var(--ink)', display: 'block', lineHeight: 1 }}>{total}</span>
-          <span style={{ fontSize: '0.65rem', fontWeight: '700', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</span>
+          <span style={{ fontSize: '24px', fontWeight: 800, color: '#111827', display: 'block', lineHeight: 1 }}>{total}</span>
+          <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invoices</span>
         </div>
       </div>
-      
-      <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', fontSize: '0.8rem', borderTop: '1px solid var(--line)', paddingTop: '0.75rem', width: '100%' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: '600', color: 'var(--ink-soft)' }}>
-          <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: 'var(--cyan)', borderRadius: '50%' }} />
+
+      <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', fontSize: '12.5px', borderTop: '1px solid #E6E9EE', paddingTop: '12px', width: '100%' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 600, color: '#374151' }}>
+          <span style={{ width: '8px', height: '8px', backgroundColor: '#07A96A', borderRadius: '50%' }} />
           Paid ({paid})
         </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: '600', color: 'var(--ink-soft)' }}>
-          <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: 'var(--green-500)', borderRadius: '50%' }} />
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 600, color: '#374151' }}>
+          <span style={{ width: '8px', height: '8px', backgroundColor: '#CA8A04', borderRadius: '50%' }} />
           Pending ({pending})
         </span>
       </div>
@@ -212,44 +212,45 @@ function InvoiceDonutChart({ paid = 0, pending = 0 }) {
   );
 }
 
-// 3. Premium Bar Chart with Gradient Fills
+// 3. Monthly Companies Bar Chart
 function MonthlyCompaniesBarChart({ monthlyData = [] }) {
   if (monthlyData.length === 0) {
-    return <div style={{ height: '160px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'var(--muted)' }}>No data available</div>;
+    return (
+      <div style={{ height: '180px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#9CA3AF', fontSize: '13px' }}>
+        No historical data
+      </div>
+    );
   }
 
-  const maxCount = Math.max(...monthlyData.map(d => d.company_count), 1);
+  const maxCount = Math.max(...monthlyData.map((d) => d.company_count), 1);
 
   return (
-    <div style={{ display: 'flex', height: '160px', alignItems: 'flex-end', justifyContent: 'space-between', gap: '1rem', width: '100%', padding: '0.5rem 0' }}>
+    <div style={{ display: 'flex', height: '180px', alignItems: 'flex-end', justifyContent: 'space-between', gap: '14px', width: '100%', padding: '10px 0' }}>
       {monthlyData.map((d, idx) => {
-        const heightPct = (d.company_count / maxCount) * 100;
+        const heightPct = Math.max((d.company_count / maxCount) * 100, 6);
         return (
           <div key={idx} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
             <div style={{ position: 'relative', width: '100%', height: '80%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-              {/* Background Track */}
-              <div style={{ position: 'absolute', width: '100%', height: '100%', backgroundColor: '#fdfbf9', borderRadius: '6px', border: '1px solid #f9f5f0' }} />
-              
-              {/* Bar Fill */}
-              <div 
-                style={{ 
-                  width: '100%', 
-                  height: `${heightPct}%`, 
-                  background: 'linear-gradient(180deg, var(--cyan) 0%, #1e9fc2 100%)',
-                  borderRadius: '6px', 
+              <div style={{ position: 'absolute', width: '100%', height: '100%', backgroundColor: '#F9FAFB', borderRadius: '6px', border: '1px solid #E6E9EE' }} />
+              <div
+                style={{
+                  width: '100%',
+                  height: `${heightPct}%`,
+                  background: 'linear-gradient(180deg, #07A96A 0%, #036F45 100%)',
+                  borderRadius: '6px',
                   position: 'relative',
-                  boxShadow: '0 4px 10px rgba(46, 196, 232, 0.15)',
-                  transition: 'height 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                  zIndex: 2
+                  transition: 'height 0.4s ease',
+                  zIndex: 2,
                 }}
               >
-                {/* Floating label inside/above bar */}
-                <div style={{ position: 'absolute', top: '-24px', left: '50%', transform: 'translateX(-50%)', fontSize: '0.72rem', fontWeight: '800', color: 'var(--ink)' }}>
+                <div style={{ position: 'absolute', top: '-22px', left: '50%', transform: 'translateX(-50%)', fontSize: '11px', fontWeight: 800, color: '#111827' }}>
                   {d.company_count}
                 </div>
               </div>
             </div>
-            <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--muted)', marginTop: '0.65rem', whiteSpace: 'nowrap' }}>{d.month}</span>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#6B7280', marginTop: '10px', whiteSpace: 'nowrap' }}>
+              {d.month}
+            </span>
           </div>
         );
       })}
@@ -257,13 +258,17 @@ function MonthlyCompaniesBarChart({ monthlyData = [] }) {
   );
 }
 
-// 4. Premium Smooth Area Line Chart
+// 4. Smooth Area Line Chart for Revenue
 function RevenueLineChart({ monthly = [] }) {
   if (monthly.length === 0) {
-    return <div style={{ height: '160px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'var(--muted)' }}>No data available</div>;
+    return (
+      <div style={{ height: '180px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#9CA3AF', fontSize: '13px' }}>
+        No revenue trends recorded
+      </div>
+    );
   }
 
-  const maxRevenue = Math.max(...monthly.map(m => Number(m.revenue)), 1);
+  const maxRevenue = Math.max(...monthly.map((m) => Number(m.revenue)), 1);
   const width = 500;
   const height = 150;
   const padding = 20;
@@ -275,51 +280,46 @@ function RevenueLineChart({ monthly = [] }) {
   });
 
   const smoothLinePath = getBezierPath(points);
-  const smoothAreaPath = points.length > 0 
-    ? `${smoothLinePath} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z` 
+  const smoothAreaPath = points.length > 0
+    ? `${smoothLinePath} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`
     : '';
 
   return (
     <div style={{ width: '100%' }}>
       <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="150" style={{ overflow: 'visible' }}>
         <defs>
-          <linearGradient id="premiumOrangeGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--green-500)" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="var(--green-500)" stopOpacity="0.0" />
+          <linearGradient id="revenueGreenGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#07A96A" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#07A96A" stopOpacity="0.0" />
           </linearGradient>
         </defs>
-        
-        {/* Soft Grid Lines */}
-        <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="#faf6f2" strokeWidth="1" />
-        <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} stroke="#faf6f2" strokeWidth="1" />
-        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="var(--line)" strokeWidth="1.5" />
 
-        {/* Fill Area with Gradient */}
-        {smoothAreaPath && <path d={smoothAreaPath} fill="url(#premiumOrangeGrad)" style={{ transition: 'all 0.5s ease' }} />}
+        <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="#E6E9EE" strokeWidth="1" />
+        <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} stroke="#E6E9EE" strokeWidth="1" />
+        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#E6E9EE" strokeWidth="1.5" />
 
-        {/* Bezier Spline Path */}
+        {smoothAreaPath && <path d={smoothAreaPath} fill="url(#revenueGreenGrad)" style={{ transition: 'all 0.5s ease' }} />}
+
         {smoothLinePath && (
-          <path 
-            d={smoothLinePath} 
-            fill="none" 
-            stroke="var(--green-600)" 
-            strokeWidth="3.5" 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
-            style={{ filter: 'drop-shadow(0px 4px 6px rgba(232, 111, 12, 0.15))' }}
+          <path
+            d={smoothLinePath}
+            fill="none"
+            stroke="#07A96A"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         )}
 
-        {/* Glowing node coordinates */}
         {points.map((p, idx) => (
           <g key={idx}>
-            <circle cx={p.x} cy={p.y} r="4.5" fill="#fff" stroke="var(--green-600)" strokeWidth="2.5" />
+            <circle cx={p.x} cy={p.y} r="4.5" fill="#FFFFFF" stroke="#07A96A" strokeWidth="2.5" />
             <title>{`${p.month}: ${money(p.revenue)}`}</title>
           </g>
         ))}
       </svg>
-      
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: `0 ${padding}px`, fontSize: '0.72rem', fontWeight: '700', color: 'var(--muted)', marginTop: '0.65rem' }}>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: `0 ${padding}px`, fontSize: '11px', fontWeight: 700, color: '#6B7280', marginTop: '10px' }}>
         {monthly.map((m, idx) => (
           <span key={idx}>{m.month.slice(5)}</span>
         ))}
@@ -341,16 +341,18 @@ export default function OverviewPage() {
 
   if (error) {
     return (
-      <div className="page">
-        <div className="alert">{error}</div>
+      <div style={{ padding: '20px', backgroundColor: '#FEECEC', color: '#DC2626', borderRadius: '14px', border: '1px solid #FECACA', fontSize: '14px', fontWeight: 600 }}>
+        {error}
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="page">
-        <div className="skeleton-block" />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ height: '40px', width: '280px', backgroundColor: '#E6E9EE', borderRadius: '8px' }} />
+        <div style={{ height: '140px', backgroundColor: '#E6E9EE', borderRadius: '18px' }} />
+        <div style={{ height: '280px', backgroundColor: '#E6E9EE', borderRadius: '18px' }} />
       </div>
     );
   }
@@ -361,227 +363,310 @@ export default function OverviewPage() {
   );
 
   return (
-    <div className="page" style={{ paddingBottom: '3rem', maxWidth: '1280px', margin: '0 auto' }}>
-      <header className="page-head" style={{ marginBottom: '1.75rem', borderBottom: '1px solid var(--line)', paddingBottom: '1.25rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* 1. Header Row */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <p className="eyebrow" style={{ color: 'var(--green-600)', fontWeight: '700', letterSpacing: '0.05em' }}>SURFSYNC PLATFORM MANAGEMENT</p>
-          <h1 style={{ fontSize: '2.25rem', fontWeight: '800', margin: '0.25rem 0', fontFamily: "'Fraunces', serif" }}>Overview</h1>
-          <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
-            System dashboard and performance analytics.
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '11px',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              color: '#07A96A',
+              marginBottom: '4px',
+            }}
+          >
+            <span>PatronPing Platform Telemetry</span>
+            <span style={{ color: '#D1D5DB' }}>/</span>
+            <span>Command Center</span>
+          </div>
+          <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#111827', margin: 0, letterSpacing: '-0.025em' }}>
+            Overview
+          </h1>
+          <p style={{ margin: '4px 0 0 0', color: '#6B7280', fontSize: '13.5px' }}>
+            System dashboard, multi-tenant fleet health, and subscription trajectory.
           </p>
         </div>
-        <Link 
-          to="/admin/companies" 
-          className="primary-btn" 
-          style={{ 
-            backgroundColor: 'var(--green-600)', 
-            border: 'none', 
-            boxShadow: '0 4px 14px rgba(232, 111, 12, 0.3)',
-            padding: '0.65rem 1.25rem',
-            fontWeight: '600'
+
+        <Link
+          to="/admin/companies"
+          style={{
+            height: '40px',
+            padding: '0 18px',
+            borderRadius: '12px',
+            background: 'linear-gradient(180deg, #07A96A 0%, #036F45 100%)',
+            color: '#FFFFFF',
+            fontSize: '13.5px',
+            fontWeight: 700,
+            textDecoration: 'none',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 1px 2px rgba(3, 111, 69, 0.35)',
           }}
         >
-          + Create Company
+          <Plus size={16} />
+          <span>Create Company</span>
         </Link>
-      </header>
+      </div>
 
-      {/* STAT CARDS - ROW 1 (PREMIUM GRADIENTS) */}
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.25rem', marginBottom: '1.25rem' }}>
-        <article className="stat-card" style={{ border: '1px solid var(--line)', background: 'linear-gradient(135deg, rgba(232, 111, 12, 0.04) 0%, #fff 100%)', padding: '1.25rem', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', transition: 'transform 0.2s ease' }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Companies</span>
-          <strong style={{ fontSize: '2.25rem', fontWeight: '800', display: 'block', margin: '0.25rem 0', color: 'var(--ink)' }}>{data.counts.total_companies}</strong>
-          <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Registered organizations</span>
-        </article>
-        <article className="stat-card" style={{ border: '1px solid var(--line)', background: 'linear-gradient(135deg, rgba(46, 196, 232, 0.04) 0%, #fff 100%)', padding: '1.25rem', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', transition: 'transform 0.2s ease' }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Active Subscriptions</span>
-          <strong style={{ fontSize: '2.25rem', fontWeight: '800', display: 'block', margin: '0.25rem 0', color: 'var(--cyan)' }}>{data.counts.active_companies}</strong>
-          <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Paid & unlock accounts</span>
-        </article>
-        <article className="stat-card" style={{ border: '1px solid var(--line)', background: 'linear-gradient(135deg, rgba(245, 130, 32, 0.04) 0%, #fff 100%)', padding: '1.25rem', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', transition: 'transform 0.2s ease' }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>On Trial</span>
-          <strong style={{ fontSize: '2.25rem', fontWeight: '800', display: 'block', margin: '0.25rem 0', color: 'var(--green-400)' }}>{data.counts.trial_companies}</strong>
-          <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>Evaluation period active</span>
-        </article>
-        <article className="stat-card" style={{ border: '1px solid var(--line)', background: 'linear-gradient(135deg, rgba(232, 111, 12, 0.04) 0%, #fff 100%)', padding: '1.25rem', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', transition: 'transform 0.2s ease' }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Platform Revenue</span>
-          <strong style={{ fontSize: '2.25rem', fontWeight: '800', display: 'block', margin: '0.25rem 0', color: 'var(--green-700)' }}>{money(data.revenue.total_revenue)}</strong>
-          <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>All-time collected</span>
-        </article>
-      </section>
-
-      {/* STAT CARDS - ROW 2 (CLEAN BRUSHED CARDS) */}
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-        { [
-          { label: 'Plans Available', value: data.counts.total_plans, color: 'var(--ink)' },
-          { label: 'Pending Invoices', value: data.counts.pending_invoices, color: '#c65911' },
-          { label: 'Paid Invoices', value: data.counts.paid_invoices, color: 'var(--cyan)' },
-          { label: 'Expired Trials', value: data.counts.expired_trials, color: '#c65911' },
-          { label: 'Active Modules', value: '8/8', color: 'var(--ink)' },
-          { label: 'Suspended Companies', value: data.counts.suspended_companies, color: '#d9534f' }
-        ].map((item, idx) => (
-          <div key={idx} style={{ border: '1px solid var(--line)', padding: '0.75rem 1rem', borderRadius: '8px', backgroundColor: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.005)' }}>
-            <span style={{ fontSize: '0.65rem', fontWeight: '700', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.25rem' }}>{item.label}</span>
-            <strong style={{ fontSize: '1.35rem', fontWeight: '850', color: item.color }}>{item.value}</strong>
-          </div>
-        ))}
-      </section>
-
-      {/* CHARTS GRID 2x2 (MODERN SEAMLESS DESIGN) */}
-      <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.75rem', marginBottom: '2rem' }}>
-        
-        {/* Chart 1: Company Status */}
-        <div style={{ border: '1px solid var(--line)', borderRadius: '16px', backgroundColor: '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', overflow: 'hidden' }}>
-          <div style={{ padding: '1.25rem 1.5rem 0.5rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800', color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Company Status</h3>
-              <p style={{ margin: '0.1rem 0 0 0', fontSize: '0.75rem', color: 'var(--muted)' }}>Breakdown of active, trial and inactive portal access.</p>
+      {/* 2. Primary KPI Row (4 Stats) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', padding: '20px', boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#4B5563' }}>Total Companies</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#E8F8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#07A96A' }}>
+              <Building2 size={16} />
             </div>
           </div>
-          <div style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '220px' }}>
-            <DonutChart active={data.counts.active_companies} inactive={inactiveCompaniesCount} trial={data.counts.trial_companies} />
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#111827', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
+            {data.counts.total_companies}
+          </div>
+          <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}>
+            Registered tenant organizations
           </div>
         </div>
 
-        {/* Chart 2: New Companies (6 Months) */}
-        <div style={{ border: '1px solid var(--line)', borderRadius: '16px', backgroundColor: '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', overflow: 'hidden' }}>
-          <div style={{ padding: '1.25rem 1.5rem 0.5rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800', color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>New Companies (6 Months)</h3>
-              <p style={{ margin: '0.1rem 0 0 0', fontSize: '0.75rem', color: 'var(--muted)' }}>System registrations tracked monthly.</p>
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', padding: '20px', boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#4B5563' }}>Active Subscriptions</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#EDF5FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0B6BE6' }}>
+              <CheckCircle2 size={16} />
             </div>
           </div>
-          <div style={{ padding: '1.5rem', minHeight: '220px', display: 'flex', alignItems: 'center' }}>
-            <MonthlyCompaniesBarChart monthlyData={data.newCompaniesMonthly || []} />
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#0B6BE6', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
+            {data.counts.active_companies}
           </div>
+          <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}>
+            Paid & unlocked commercial accounts
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', padding: '20px', boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#4B5563' }}>On Trial</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#FEF7E1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#A16207' }}>
+              <Clock size={16} />
+            </div>
+          </div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#A16207', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
+            {data.counts.trial_companies}
+          </div>
+          <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}>
+            Evaluation period active
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', padding: '20px', boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#4B5563' }}>Platform Revenue</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#E8F8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#067C52' }}>
+              <TrendingUp size={16} />
+            </div>
+          </div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#067C52', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
+            {money(data.revenue.total_revenue)}
+          </div>
+          <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}>
+            All-time collected revenue
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Secondary Metrics Strip (Wells) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
+        {[
+          { label: 'Plans Available', value: data.counts.total_plans, color: '#111827' },
+          { label: 'Pending Invoices', value: data.counts.pending_invoices, color: '#CA8A04' },
+          { label: 'Paid Invoices', value: data.counts.paid_invoices, color: '#07A96A' },
+          { label: 'Expired Trials', value: data.counts.expired_trials, color: '#DC2626' },
+          { label: 'Active Modules', value: '8/8', color: '#0B6BE6' },
+          { label: 'Suspended Companies', value: data.counts.suspended_companies, color: '#DC2626' },
+        ].map((item, idx) => (
+          <div
+            key={idx}
+            style={{
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #E6E9EE',
+              borderRadius: '12px',
+              padding: '12px 16px',
+              boxShadow: '0 1px 2px rgba(16,24,40,0.02)',
+            }}
+          >
+            <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#6B7280', display: 'block', marginBottom: '4px' }}>
+              {item.label}
+            </span>
+            <strong style={{ fontSize: '20px', fontWeight: 800, color: item.color, fontVariantNumeric: 'tabular-nums' }}>
+              {item.value}
+            </strong>
+          </div>
+        ))}
+      </div>
+
+      {/* 4. 2x2 Telemetry Charts Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '20px' }}>
+        {/* Chart 1: Company Status */}
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', padding: '20px', boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+          <div style={{ marginBottom: '14px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#111827', margin: 0 }}>Company Status</h3>
+            <p style={{ fontSize: '13px', color: '#6B7280', margin: '2px 0 0 0' }}>Breakdown of active, trial and inactive tenant access.</p>
+          </div>
+          <DonutChart active={data.counts.active_companies} inactive={inactiveCompaniesCount} trial={data.counts.trial_companies} />
+        </div>
+
+        {/* Chart 2: Monthly Inflow */}
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', padding: '20px', boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+          <div style={{ marginBottom: '14px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#111827', margin: 0 }}>New Companies (6 Months)</h3>
+            <p style={{ fontSize: '13px', color: '#6B7280', margin: '2px 0 0 0' }}>System onboarding registrations tracked monthly.</p>
+          </div>
+          <MonthlyCompaniesBarChart monthlyData={data.newCompaniesMonthly || []} />
         </div>
 
         {/* Chart 3: Revenue Trend */}
-        <div style={{ border: '1px solid var(--line)', borderRadius: '16px', backgroundColor: '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', overflow: 'hidden' }}>
-          <div style={{ padding: '1.25rem 1.5rem 0.5rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800', color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Revenue Trend</h3>
-              <p style={{ margin: '0.1rem 0 0 0', fontSize: '0.75rem', color: 'var(--muted)' }}>Subscription revenue trajectory over the past months.</p>
-            </div>
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', padding: '20px', boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+          <div style={{ marginBottom: '14px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#111827', margin: 0 }}>Revenue Trajectory</h3>
+            <p style={{ fontSize: '13px', color: '#6B7280', margin: '2px 0 0 0' }}>Subscription revenue velocity over recent months.</p>
           </div>
-          <div style={{ padding: '1.5rem 1.5rem 1.25rem 1.5rem', minHeight: '220px', display: 'flex', alignItems: 'center' }}>
-            <RevenueLineChart monthly={data.monthly || []} />
-          </div>
+          <RevenueLineChart monthly={data.monthly || []} />
         </div>
 
         {/* Chart 4: Invoice Status */}
-        <div style={{ border: '1px solid var(--line)', borderRadius: '16px', backgroundColor: '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', overflow: 'hidden' }}>
-          <div style={{ padding: '1.25rem 1.5rem 0.5rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800', color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Invoice Status</h3>
-              <p style={{ margin: '0.1rem 0 0 0', fontSize: '0.75rem', color: 'var(--muted)' }}>Distribution of paid vs pending invoice records.</p>
-            </div>
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', padding: '20px', boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+          <div style={{ marginBottom: '14px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#111827', margin: 0 }}>Invoice Collection</h3>
+            <p style={{ fontSize: '13px', color: '#6B7280', margin: '2px 0 0 0' }}>Distribution of settled vs pending invoices.</p>
           </div>
-          <div style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '220px' }}>
-            <InvoiceDonutChart paid={data.counts.paid_invoices} pending={data.counts.pending_invoices} />
-          </div>
+          <InvoiceDonutChart paid={data.counts.paid_invoices} pending={data.counts.pending_invoices} />
         </div>
+      </div>
 
-      </section>
-
-      {/* TABLES ROW (3 COLUMNS SPLIT) */}
-      <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.25rem' }}>
-        
+      {/* 5. Bottom 3 Data Tables Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
         {/* Table 1: Recent Companies */}
-        <div style={{ border: '1px solid var(--line)', borderRadius: '16px', backgroundColor: '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', overflow: 'hidden' }}>
-          <div style={{ padding: '1.25rem 1.25rem 0.75rem 1.25rem', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: '800', fontSize: '0.85rem', color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>RECENT COMPANIES</span>
-            <Link to="/admin/companies" style={{ color: 'var(--green-600)', fontSize: '0.75rem', fontWeight: '700', textDecoration: 'none' }}>VIEW ALL</Link>
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', overflow: 'hidden', boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #E6E9EE', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F9FAFB' }}>
+            <span style={{ fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#6B7280' }}>
+              Recent Companies
+            </span>
+            <Link to="/admin/companies" style={{ color: '#07A96A', fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>
+              View all →
+            </Link>
           </div>
-          <div style={{ padding: '0.5rem 0' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-              <tbody>
-                {data.recentCompanies.slice(0, 5).map((c) => (
-                  <tr key={c.id} style={{ borderBottom: '1px solid var(--line)' }}>
-                    <td style={{ padding: '0.75rem 1.25rem', fontSize: '0.85rem', fontWeight: '750', color: 'var(--ink)', width: '50%', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                      {c.name}
-                    </td>
-                    <td style={{ padding: '0.75rem 0.25rem', width: '25%', verticalAlign: 'middle' }}>
-                      <span className={`badge badge-${c.status}`} style={{ fontSize: '0.62rem', padding: '0.15rem 0.45rem', textTransform: 'uppercase', fontWeight: '800' }}>
-                        {c.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.75rem 1.25rem', fontSize: '0.82rem', color: 'var(--muted)', textAlign: 'right', width: '25%', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                      {c.plan_name || 'Trial'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <tbody>
+              {data.recentCompanies.slice(0, 5).map((c) => (
+                <tr key={c.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                  <td style={{ padding: '12px 20px', fontWeight: 700, color: '#111827' }}>
+                    {c.name}
+                  </td>
+                  <td style={{ padding: '12px 10px' }}>
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '9999px',
+                        backgroundColor: c.status === 'active' ? '#E8F7EE' : c.status === 'trial' ? '#FEF7E1' : '#F1F3F6',
+                        color: c.status === 'active' ? '#16A34A' : c.status === 'trial' ? '#A16207' : '#4B5563',
+                        textTransform: 'capitalize',
+                      }}
+                    >
+                      {c.status}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 20px', textAlign: 'right', color: '#6B7280' }}>
+                    {c.plan_name || 'Trial'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
         {/* Table 2: Expiring Trials */}
-        <div style={{ border: '1px solid var(--line)', borderRadius: '16px', backgroundColor: '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', overflow: 'hidden' }}>
-          <div style={{ padding: '1.25rem 1.25rem 0.75rem 1.25rem', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: '800', fontSize: '0.85rem', color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>EXPIRING TRIALS</span>
-            <Link to="/admin/trials" style={{ color: 'var(--green-600)', fontSize: '0.75rem', fontWeight: '700', textDecoration: 'none' }}>MANAGE</Link>
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', overflow: 'hidden', boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #E6E9EE', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F9FAFB' }}>
+            <span style={{ fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#6B7280' }}>
+              Expiring Trials
+            </span>
+            <Link to="/admin/trials" style={{ color: '#07A96A', fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>
+              Manage →
+            </Link>
           </div>
-          <div style={{ padding: '0.5rem 0' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-              <tbody>
-                {(data.expiringTrials || []).length === 0 ? (
-                  <tr>
-                    <td colSpan="2" style={{ padding: '2rem', textAlign: 'center', fontSize: '0.85rem', color: 'var(--muted)' }}>No trials expiring soon.</td>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <tbody>
+              {(data.expiringTrials || []).length === 0 ? (
+                <tr>
+                  <td style={{ padding: '28px', textAlign: 'center', color: '#9CA3AF' }}>No trials expiring soon</td>
+                </tr>
+              ) : (
+                (data.expiringTrials || []).slice(0, 5).map((c) => (
+                  <tr key={c.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                    <td style={{ padding: '12px 20px', fontWeight: 700, color: '#111827' }}>
+                      {c.name}
+                    </td>
+                    <td style={{ padding: '12px 20px', textAlign: 'right', color: '#A16207', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                      {formatDate(c.subscription_end)}
+                      <span style={{ fontSize: '11px', color: '#6B7280', fontWeight: 500, marginLeft: '4px' }}>
+                        ({c.days_left}d)
+                      </span>
+                    </td>
                   </tr>
-                ) : (
-                  (data.expiringTrials || []).slice(0, 5).map((c) => (
-                    <tr key={c.id} style={{ borderBottom: '1px solid var(--line)' }}>
-                      <td style={{ padding: '0.75rem 1.25rem', fontSize: '0.85rem', fontWeight: '750', color: 'var(--ink)', width: '60%', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                        {c.name}
-                      </td>
-                      <td style={{ padding: '0.75rem 1.25rem', fontSize: '0.82rem', color: '#c65911', fontWeight: '700', textAlign: 'right', width: '40%', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                        {formatDate(c.subscription_end)}
-                        <span style={{ fontSize: '0.7rem', color: 'var(--muted)', fontWeight: '500', marginLeft: '0.35rem' }}>
-                          ({c.days_left}d)
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
 
         {/* Table 3: Recent Invoices */}
-        <div style={{ border: '1px solid var(--line)', borderRadius: '16px', backgroundColor: '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.01)', overflow: 'hidden' }}>
-          <div style={{ padding: '1.25rem 1.25rem 0.75rem 1.25rem', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: '800', fontSize: '0.85rem', color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>RECENT INVOICES</span>
-            <Link to="/admin/billing" style={{ color: 'var(--green-600)', fontSize: '0.75rem', fontWeight: '700', textDecoration: 'none' }}>VIEW ALL</Link>
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', overflow: 'hidden', boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #E6E9EE', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F9FAFB' }}>
+            <span style={{ fontWeight: 800, fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#6B7280' }}>
+              Recent Invoices
+            </span>
+            <Link to="/admin/billing" style={{ color: '#07A96A', fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>
+              View all →
+            </Link>
           </div>
-          <div style={{ padding: '0.5rem 0' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-              <tbody>
-                {data.recentPayments.length === 0 ? (
-                  <tr>
-                    <td colSpan="3" style={{ padding: '2rem', textAlign: 'center', fontSize: '0.85rem', color: 'var(--muted)' }}>No recent invoices.</td>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <tbody>
+              {data.recentPayments.length === 0 ? (
+                <tr>
+                  <td style={{ padding: '28px', textAlign: 'center', color: '#9CA3AF' }}>No recent invoices</td>
+                </tr>
+              ) : (
+                data.recentPayments.slice(0, 5).map((p) => (
+                  <tr key={p.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                    <td style={{ padding: '12px 20px', fontWeight: 700, color: '#111827' }}>
+                      {p.invoice_number}
+                    </td>
+                    <td style={{ padding: '12px 10px', color: '#4B5563' }}>
+                      {p.company_name}
+                    </td>
+                    <td
+                      style={{
+                        padding: '12px 20px',
+                        textAlign: 'right',
+                        fontWeight: 800,
+                        fontVariantNumeric: 'tabular-nums',
+                        color: p.status === 'paid' ? '#16A34A' : '#CA8A04',
+                      }}
+                    >
+                      {money(p.amount)}
+                    </td>
                   </tr>
-                ) : (
-                  data.recentPayments.slice(0, 5).map((p) => (
-                    <tr key={p.id} style={{ borderBottom: '1px solid var(--line)' }}>
-                      <td style={{ padding: '0.75rem 1.25rem', fontSize: '0.85rem', fontWeight: '750', color: 'var(--ink)', width: '35%', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                        {p.invoice_number}
-                      </td>
-                      <td style={{ padding: '0.75rem 0.25rem', fontSize: '0.82rem', color: 'var(--ink-soft)', width: '35%', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                        {p.company_name}
-                      </td>
-                      <td style={{ padding: '0.75rem 1.25rem', fontSize: '0.85rem', fontWeight: '700', textAlign: 'right', color: p.status === 'paid' ? 'var(--cyan)' : '#c65911', width: '30%', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                        {money(p.amount)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-
-      </section>
+      </div>
     </div>
   );
 }

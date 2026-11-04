@@ -25,8 +25,12 @@ import {
   Sparkles,
   ArrowRight,
   Filter,
+  Target,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import WhatsAppChatModal from '../components/WhatsAppChatModal';
+import CampaignFilterDropdown from '../components/CampaignFilterDropdown';
 
 function downloadSampleExcelTemplate() {
   const csvContent =
@@ -134,11 +138,30 @@ export default function CompanyLeadsPage() {
   const [sources, setSources] = useState([]);
   const [team, setTeam] = useState([]);
   const [leads, setLeads] = useState([]);
+  const [pageSize, setPageSize] = useState(15);
+  const pageSizeRef = useRef(15);
+  pageSizeRef.current = pageSize;
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
   const [page, setPage] = useState(1);
+  const pageRef = useRef(1);
+  pageRef.current = page;
   const [search, setSearch] = useState('');
+  const searchRef = useRef('');
+  searchRef.current = search;
+
   const [sourceFilter, setSourceFilter] = useState('');
+  const sourceFilterRef = useRef('');
+  sourceFilterRef.current = sourceFilter;
+
   const [statusFilter, setStatusFilter] = useState('');
+  const statusFilterRef = useRef('');
+  statusFilterRef.current = statusFilter;
+
+  const [campaignFilter, setCampaignFilter] = useState('');
+  const campaignFilterRef = useRef('');
+  campaignFilterRef.current = campaignFilter;
+  const [campaignsList, setCampaignsList] = useState([]);
+  const [deletingId, setDeletingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyLead);
   const [error, setError] = useState('');
@@ -271,26 +294,97 @@ export default function CompanyLeadsPage() {
     setTeam(data.team.filter((m) => m.is_active));
   }
 
-  async function loadLeads(nextPage = page) {
-    const data = await companyPortalApi.leads({
-      page: nextPage,
-      limit: PAGE_SIZE,
-      q: search || undefined,
-      source: sourceFilter || undefined,
-      status: statusFilter || undefined,
-    });
-    setLeads(data.leads);
-    setPagination(data.pagination);
-    setPage(data.pagination.page);
+  async function loadCampaigns() {
+    try {
+      const data = await companyPortalApi.leadCampaigns();
+      if (data?.campaigns && Array.isArray(data.campaigns)) {
+        setCampaignsList(data.campaigns);
+      }
+    } catch (err) {
+      console.warn('Failed to load campaigns:', err.message);
+    }
   }
 
+  const loadLeadsRef = useRef();
+
+  async function loadLeads(nextPage = pageRef.current, limit = pageSizeRef.current) {
+    const curCampaign = campaignFilterRef.current;
+    const curSource = sourceFilterRef.current;
+    const curStatus = statusFilterRef.current;
+    const curSearch = searchRef.current;
+
+    pageRef.current = nextPage;
+    if (curCampaign) {
+      // Robust client-assisted filtering for campaigns, especially 'Direct WhatsApp'
+      // where database campaign column is NULL or empty string
+      const isDirectWhatsApp = curCampaign === 'Direct WhatsApp';
+      const data = await companyPortalApi.leads({
+        page: 1,
+        limit: 1000,
+        q: curSearch || undefined,
+        source: curSource || undefined,
+        status: curStatus || undefined,
+      });
+
+      const allLeads = data.leads || [];
+      const filtered = allLeads.filter((l) => {
+        if (isDirectWhatsApp) {
+          return !l.campaign || !String(l.campaign).trim() || String(l.campaign).toLowerCase() === 'direct whatsapp';
+        }
+        return String(l.campaign || '').trim().toLowerCase() === curCampaign.trim().toLowerCase();
+      });
+
+      const total = filtered.length;
+      const targetPage = Math.max(1, Math.min(nextPage, Math.ceil(total / limit) || 1));
+      const start = (targetPage - 1) * limit;
+      const pageLeads = filtered.slice(start, start + limit);
+
+      setLeads(pageLeads);
+      setPagination({
+        total,
+        page: targetPage,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      });
+      pageRef.current = targetPage;
+      setPage(targetPage);
+      return;
+    }
+
+    const data = await companyPortalApi.leads({
+      page: nextPage,
+      limit,
+      q: curSearch || undefined,
+      source: curSource || undefined,
+      status: curStatus || undefined,
+    });
+    setLeads(data.leads || []);
+    setPagination(
+      data.pagination || {
+        total: data.leads?.length || 0,
+        page: nextPage,
+        limit,
+        totalPages: Math.ceil((data.pagination?.total || data.leads?.length || 0) / limit) || 1,
+      }
+    );
+    const resolvedPage = data.pagination?.page || nextPage;
+    pageRef.current = resolvedPage;
+    setPage(resolvedPage);
+  }
+
+  loadLeadsRef.current = loadLeads;
+
+  const isFirstMount = useRef(true);
+
   useEffect(() => {
-    Promise.all([loadSources(), loadTeam(), loadLeads(1), loadFacebookConnections(), loadRegisteredUrls()]).catch((err) =>
+    Promise.all([loadSources(), loadTeam(), loadLeads(1, pageSizeRef.current), loadFacebookConnections(), loadRegisteredUrls(), loadCampaigns()]).catch((err) =>
       setError(err.message)
     );
 
     const pollInterval = setInterval(() => {
-      loadLeads(page).catch(() => {});
+      if (loadLeadsRef.current) {
+        loadLeadsRef.current(pageRef.current, pageSizeRef.current).catch(() => {});
+      }
     }, 15000);
 
     const params = new URLSearchParams(window.location.search);
@@ -317,14 +411,34 @@ export default function CompanyLeadsPage() {
   }, []);
 
   useEffect(() => {
-    loadLeads(1).catch((err) => setError(err.message));
-  }, [sourceFilter, statusFilter]);
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+    loadLeads(1, pageSizeRef.current).catch((err) => setError(err.message));
+  }, [sourceFilter, statusFilter, campaignFilter]);
 
   const enabledCount = useMemo(() => sources.filter((s) => Number(s.is_enabled) === 1).length, [sources]);
   const salespeople = useMemo(
     () => team.filter((m) => m.role === 'salesperson' || m.role === 'company_admin'),
     [team]
   );
+
+  const dynamicCampaigns = useMemo(() => {
+    const set = new Set(campaignsList.filter(Boolean));
+    if (Array.isArray(leads)) {
+      leads.forEach((l) => {
+        if (l.campaign && String(l.campaign).trim()) {
+          set.add(String(l.campaign).trim());
+        }
+      });
+    }
+    const list = Array.from(set).sort();
+    if (!list.includes('Direct WhatsApp')) {
+      list.push('Direct WhatsApp');
+    }
+    return list;
+  }, [campaignsList, leads]);
 
   const dynamicColumns = useMemo(() => {
     if (!sourceFilter) {
@@ -340,6 +454,7 @@ export default function CompanyLeadsPage() {
         { key: 'assigned_to', label: 'Assigned Salesperson', isSalesperson: true },
         { key: 'tags', label: 'Tags', isTags: true },
         { key: 'status', label: 'Status', isStatus: true },
+        ...(isAdmin ? [{ key: 'actions', label: 'Action', isActions: true }] : []),
       ];
     }
 
@@ -407,11 +522,12 @@ export default function CompanyLeadsPage() {
     cols.push(
       { key: 'lead_date', label: 'Date', isDate: true },
       { key: 'assigned_to', label: 'Assigned Salesperson', isSalesperson: true },
-      { key: 'status', label: 'Status', isStatus: true }
+      { key: 'status', label: 'Status', isStatus: true },
+      ...(isAdmin ? [{ key: 'actions', label: 'Action', isActions: true }] : [])
     );
 
     return cols;
-  }, [leads, sourceFilter]);
+  }, [leads, sourceFilter, isAdmin]);
 
   function updateField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -487,6 +603,23 @@ export default function CompanyLeadsPage() {
       setError(err.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleDeleteLead(lead) {
+    if (!lead || !lead.id) return;
+    const displayName = lead.name || lead.lead_code || `#${lead.id}`;
+    if (!window.confirm(`Are you sure you want to permanently delete lead "${displayName}"? This action cannot be undone.`)) {
+      return;
+    }
+    setDeletingId(lead.id);
+    try {
+      await companyPortalApi.deleteLead(lead.id);
+      await loadLeads(page);
+    } catch (err) {
+      alert(err.message || 'Failed to delete lead');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -1557,6 +1690,16 @@ export default function CompanyLeadsPage() {
                 ))}
               </select>
 
+              {/* Dynamic Campaign Filter */}
+              <CampaignFilterDropdown
+                value={campaignFilter}
+                onChange={setCampaignFilter}
+                campaigns={dynamicCampaigns}
+                allLabel="All Campaigns"
+                allValue=""
+                height="36px"
+              />
+
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -1761,6 +1904,100 @@ export default function CompanyLeadsPage() {
                               </td>
                             );
                           }
+                          if (col.key === 'campaign') {
+                            const val = getLeadCellValue(lead, col.key);
+                            if (val && val !== '—') {
+                              return (
+                                <td key={col.key} style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                                  <span
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      color: '#1E40AF',
+                                      backgroundColor: '#EFF6FF',
+                                      border: '1px solid #DBEAFE',
+                                      padding: '2px 7px',
+                                      borderRadius: '5px',
+                                    }}
+                                  >
+                                    <Target size={11} color="#2563EB" />
+                                    <span>{val}</span>
+                                  </span>
+                                </td>
+                              );
+                            }
+                            return (
+                              <td key={col.key} style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    color: '#065F46',
+                                    backgroundColor: '#ECFDF5',
+                                    border: '1px solid #A7F3D0',
+                                    padding: '2px 7px',
+                                    borderRadius: '5px',
+                                  }}
+                                >
+                                  <MessageSquare size={11} color="#059669" />
+                                  <span>Direct WhatsApp</span>
+                                </span>
+                              </td>
+                            );
+                          }
+                          if (col.isActions) {
+                            const isDeleting = deletingId === lead.id;
+                            return (
+                              <td key={col.key} style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteLead(lead)}
+                                  disabled={isDeleting || busy}
+                                  title="Permanently Delete Lead"
+                                  style={{
+                                    border: '1px solid #FECACA',
+                                    backgroundColor: '#FEF2F2',
+                                    color: '#DC2626',
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '6px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: isDeleting || busy ? 'not-allowed' : 'pointer',
+                                    transition: 'all 0.15s ease',
+                                    opacity: isDeleting ? 0.6 : 1,
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!isDeleting && !busy) {
+                                      e.currentTarget.style.backgroundColor = '#DC2626';
+                                      e.currentTarget.style.color = '#FFFFFF';
+                                      e.currentTarget.style.borderColor = '#DC2626';
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!isDeleting && !busy) {
+                                      e.currentTarget.style.backgroundColor = '#FEF2F2';
+                                      e.currentTarget.style.color = '#DC2626';
+                                      e.currentTarget.style.borderColor = '#FECACA';
+                                    }
+                                  }}
+                                >
+                                  {isDeleting ? (
+                                    <Loader2 size={14} className="animate-spin" />
+                                  ) : (
+                                    <Trash2 size={14} />
+                                  )}
+                                </button>
+                              </td>
+                            );
+                          }
                           return (
                             <td key={col.key} style={{ padding: '12px 16px', color: '#374151' }}>
                               {getLeadCellValue(lead, col.key)}
@@ -1788,51 +2025,83 @@ export default function CompanyLeadsPage() {
               gap: '10px',
             }}>
               <span>
-                Showing <strong className="num">{leads.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}</strong> to{' '}
-                <strong className="num">{Math.min(page * PAGE_SIZE, pagination.total)}</strong> of{' '}
+                Showing <strong className="num">{leads.length === 0 ? 0 : (page - 1) * pageSize + 1}</strong> to{' '}
+                <strong className="num">{Math.min(page * pageSize, pagination.total)}</strong> of{' '}
                 <strong className="num">{pagination.total}</strong> entries
               </span>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <button
-                  type="button"
-                  disabled={page <= 1}
-                  onClick={() => loadLeads(page - 1)}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    const newSize = Number(e.target.value);
+                    setPageSize(newSize);
+                    loadLeads(1, newSize);
+                  }}
                   style={{
-                    padding: '5px 12px',
+                    padding: '4px 10px',
                     borderRadius: '6px',
                     border: '1px solid #E6E9EE',
-                    backgroundColor: '#FFFFFF',
-                    color: '#374151',
                     fontSize: '12px',
-                    fontWeight: 700,
-                    cursor: page <= 1 ? 'not-allowed' : 'pointer',
-                    opacity: page <= 1 ? 0.5 : 1,
+                    fontWeight: 600,
+                    color: '#111827',
+                    backgroundColor: '#FFFFFF',
+                    outline: 'none',
+                    cursor: 'pointer',
                   }}
                 >
-                  Prev
-                </button>
-                <span className="num" style={{ padding: '0 8px', fontSize: '12px', fontWeight: 700, color: '#111827' }}>
-                  Page {page} of {pagination.totalPages}
-                </span>
-                <button
-                  type="button"
-                  disabled={page >= pagination.totalPages}
-                  onClick={() => loadLeads(page + 1)}
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid #E6E9EE',
-                    backgroundColor: '#FFFFFF',
-                    color: '#374151',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    cursor: page >= pagination.totalPages ? 'not-allowed' : 'pointer',
-                    opacity: page >= pagination.totalPages ? 0.5 : 1,
-                  }}
-                >
-                  Next
-                </button>
+                  <option value={10}>10 per page</option>
+                  <option value={15}>15 per page</option>
+                  <option value={25}>25 per page</option>
+                  <option value={50}>50 per page</option>
+                  <option value={100}>100 per page</option>
+                </select>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <button
+                    type="button"
+                    disabled={page <= 1}
+                    onClick={() => loadLeads(page - 1, pageSize)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '6px',
+                      border: '1px solid #E6E9EE',
+                      backgroundColor: '#FFFFFF',
+                      color: '#374151',
+                      cursor: page <= 1 ? 'not-allowed' : 'pointer',
+                      opacity: page <= 1 ? 0.4 : 1,
+                    }}
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span className="num" style={{ padding: '0 8px', fontSize: '12px', fontWeight: 700, color: '#111827' }}>
+                    {page} / {pagination.totalPages || 1}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={page >= (pagination.totalPages || 1)}
+                    onClick={() => loadLeads(page + 1, pageSize)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '6px',
+                      border: '1px solid #E6E9EE',
+                      backgroundColor: '#FFFFFF',
+                      color: '#374151',
+                      cursor: page >= (pagination.totalPages || 1) ? 'not-allowed' : 'pointer',
+                      opacity: page >= (pagination.totalPages || 1) ? 0.4 : 1,
+                    }}
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>

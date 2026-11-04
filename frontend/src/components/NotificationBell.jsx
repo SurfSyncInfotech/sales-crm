@@ -62,44 +62,39 @@ export default function NotificationBell({ portal = 'sales' }) {
   async function showDesktopPush(notif) {
     playNotificationChime();
 
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-    if (Notification.permission !== 'granted') return;
+    if (typeof window === 'undefined') return;
 
     const title = notif.title || 'SurfSync CRM Notification';
     const options = {
       body: notif.message || '',
-      icon: '/surfsync-logo.png',
+      icon: '/favicon.svg',
       badge: '/favicon.svg',
       data: { link: notif.link || '/sales' },
-      vibrate: [200, 100, 200],
       tag: `notif_${notif.id || Date.now()}`,
-      renotify: true,
     };
 
-    try {
-      if (swRegRef.current && swRegRef.current.showNotification) {
-        await swRegRef.current.showNotification(title, options);
-      } else if (navigator.serviceWorker && navigator.serviceWorker.ready) {
-        const reg = await navigator.serviceWorker.ready;
-        await reg.showNotification(title, options);
-      } else {
-        const n = new Notification(title, options);
-        n.onclick = () => {
-          window.focus();
-          if (notif.link) navigate(notif.link);
-          n.close();
-        };
-      }
-    } catch (err) {
-      console.warn('[WebPush] Error:', err);
+    // Check if permission is granted
+    if ('Notification' in window && Notification.permission === 'granted') {
       try {
+        // Direct Native Desktop Notification (immediate, works 100% on Local & Live)
         const n = new Notification(title, options);
         n.onclick = () => {
           window.focus();
           if (notif.link) navigate(notif.link);
           n.close();
         };
-      } catch (e) {}
+        return;
+      } catch (err) {
+        // If constructor throws (e.g. mobile Chrome requires serviceWorker registration)
+        try {
+          if (swRegRef.current && swRegRef.current.showNotification) {
+            await swRegRef.current.showNotification(title, options);
+            return;
+          }
+        } catch (swErr) {
+          console.warn('[WebPush] SW error:', swErr);
+        }
+      }
     }
   }
 
@@ -116,6 +111,8 @@ export default function NotificationBell({ portal = 'sales' }) {
             message: 'You will now receive instant desktop popups for new leads and quotations.',
             link: portal === 'company' ? '/company' : '/sales',
           });
+        } else if (res === 'denied') {
+          alert('Notifications are blocked by your browser!\n\nTo enable:\n1. Click the lock/settings icon next to the URL in your address bar.\n2. Change Notifications from "Block" to "Allow".\n3. Reload the page.');
         }
       } catch (err) {
         console.error('Permission error:', err);
@@ -124,14 +121,20 @@ export default function NotificationBell({ portal = 'sales' }) {
   }
 
   // 4. Test Web Push button trigger
-  function handleTestPush() {
-    if (permission !== 'granted') {
-      requestPermission();
-    } else {
+  async function handleTestPush() {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission !== 'granted') {
+        const res = await Notification.requestPermission();
+        setPermission(res);
+        if (res !== 'granted') {
+          alert('Please click "Allow" on the browser popup to enable desktop notifications.');
+          return;
+        }
+      }
       showDesktopPush({
         id: Date.now(),
-        title: '👤 New Lead: Rajesh Kumar (Real Estate)',
-        message: 'New lead from Website Form assigned to you! Contact: 9876543210',
+        title: '👤 New Lead: Rajesh Kumar',
+        message: 'New lead from Website Ad assigned to you! Phone: 9876543210',
         link: portal === 'company' ? '/company/leads' : '/sales/leads',
       });
     }

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   CheckSquare,
@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Info,
   MessageSquare,
+  MessageSquareText,
   Menu,
   X,
   LogOut,
@@ -23,28 +24,32 @@ import {
 } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 
-const links = [
-  { to: '/company', label: 'Dashboard', end: true, icon: <LayoutDashboard size={18} /> },
-  { to: '/company/leads', label: 'Leads', icon: <Inbox size={18} /> },
-  { to: '/company/pipeline', label: 'Pipeline', icon: <KanbanSquare size={18} /> },
-  { to: '/company/tasks', label: 'Tasks', icon: <CheckSquare size={18} /> },
-  { to: '/company/quotations', label: 'Quotations', icon: <FileText size={18} /> },
-  { to: '/company/automation', label: 'Automation', icon: <Workflow size={18} /> },
-  { to: '/company/whatsapp-api', label: 'WhatsApp API', icon: <MessageSquare size={18} /> },
-  { to: '/company/team', label: 'Team', icon: <Users size={18} /> },
-  { to: '/company/workflow-settings', label: 'Settings', icon: <Settings size={18} /> },
-];
-
 const titles = {
+  '': 'Admin Dashboard',
+  '/': 'Admin Dashboard',
+  '/dashboard': 'Admin Dashboard',
+  '/leads': 'Leads Management',
+  '/pipeline': 'Sales Pipeline',
+  '/tasks': 'Follow-Up Tasks',
+  '/quotations': 'Quotations & Pricing',
+  '/feedbacks': 'Sales Rep Feedback Logs',
+  '/feedback': 'Sales Rep Feedback Logs',
+  '/automation': 'Workflow Automation',
+  '/whatsapp-api': 'Official WhatsApp API',
+  '/team': 'Team & Sales Reps',
+  '/settings': 'Company Settings',
+  '/workflow-settings': 'Company Settings',
   '/company': 'Admin Dashboard',
   '/company/leads': 'Leads Management',
   '/company/pipeline': 'Sales Pipeline',
   '/company/tasks': 'Follow-Up Tasks',
   '/company/quotations': 'Quotations & Pricing',
+  '/company/feedbacks': 'Sales Rep Feedback Logs',
   '/company/automation': 'Workflow Automation',
   '/company/whatsapp-api': 'Official WhatsApp API',
   '/company/team': 'Team & Sales Reps',
-  '/company/workflow-settings': 'Workflow Settings',
+  '/company/settings': 'Company Settings',
+  '/company/workflow-settings': 'Company Settings',
 };
 
 function money(n) {
@@ -66,12 +71,42 @@ export default function CompanyLayout() {
   const { user, logout } = useAuth('company');
   const navigate = useNavigate();
   const location = useLocation();
+  const { companySlug } = useParams();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const pageTitle = titles[location.pathname] || 'Company Workspace';
+
+  // Active company slug (e.g. 'surfsync' or user's company slug)
+  const slug = companySlug || user?.company?.slug || user?.company_slug || 'company';
+  const basePath = `/${slug}`;
+
+  // Seamless auto-redirect from legacy /company to /:companySlug if user has a real slug
+  useEffect(() => {
+    const realSlug = user?.company?.slug || user?.company_slug;
+    if (realSlug && location.pathname.startsWith('/company')) {
+      const newPath = location.pathname.replace('/company', `/${realSlug}`);
+      navigate(newPath, { replace: true });
+    }
+  }, [user, location.pathname, navigate]);
+
+  const links = useMemo(() => [
+    { to: `${basePath}`, label: 'Dashboard', id: 'dashboard', end: true, icon: <LayoutDashboard size={18} /> },
+    { to: `${basePath}/leads`, label: 'Leads', id: 'leads', icon: <Inbox size={18} /> },
+    { to: `${basePath}/pipeline`, label: 'Pipeline', id: 'pipeline', icon: <KanbanSquare size={18} /> },
+    { to: `${basePath}/quotations`, label: 'Quotations', id: 'quotations', icon: <FileText size={18} /> },
+    { to: `${basePath}/feedbacks`, label: 'Feedback Logs', id: 'feedbacks', icon: <MessageSquareText size={18} /> },
+    { to: `${basePath}/automation`, label: 'Automation', id: 'automation', icon: <Workflow size={18} /> },
+    { to: `${basePath}/whatsapp-api`, label: 'WhatsApp API', id: 'whatsapp', icon: <MessageSquare size={18} /> },
+    { to: `${basePath}/team`, label: 'Team', id: 'team', icon: <Users size={18} /> },
+    { to: `${basePath}/settings`, label: 'Settings', id: 'settings', icon: <Settings size={18} /> },
+  ], [basePath]);
+
+  // Page title resolution
+  const subPath = location.pathname.replace(new RegExp(`^/(${slug}|company)`), '') || '';
+  const pageTitle = titles[subPath] || titles[`/company${subPath}`] || titles[location.pathname] || 'Company Workspace';
 
   function handleLogout() {
     logout();
-    navigate('/company/login');
+    const loginSlug = user?.company?.slug || user?.company_slug;
+    navigate(loginSlug ? `/${loginSlug}/login` : '/company/login');
   }
 
   const pendingInvoice = user?.company?.pending_invoice;
@@ -162,7 +197,7 @@ export default function CompanyLayout() {
     : 'CA';
 
   return (
-    <div className="sales-workspace-root" style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#F6F7F9' }}>
+    <div className="sales-workspace-root" style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#F6F7F9', fontFamily: "'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
       {/* Mobile Drawer Backdrop */}
       {mobileMenuOpen && (
         <div
@@ -238,7 +273,12 @@ export default function CompanyLayout() {
           Operations
         </div>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1, overflowY: 'auto' }}>
-          {links.map((link) => (
+          {links.filter((link) => {
+            if (user?.role === 'company_admin' && (!user?.permissions || user.permissions.length === 0)) return true;
+            const perms = Array.isArray(user?.permissions) ? user.permissions : [];
+            if (perms.length > 0) return perms.includes(link.id);
+            return true;
+          }).map((link) => (
             <NavLink
               key={link.to}
               to={link.to}
@@ -334,7 +374,7 @@ export default function CompanyLayout() {
                 {user?.name || 'Company Admin'}
               </div>
               <div style={{ fontSize: '0.7rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <ShieldCheck size={11} color="#059669" /> Administrator
+                <ShieldCheck size={11} color="#059669" /> {user?.custom_role || (user?.role === 'company_admin' ? 'Administrator' : 'Team Member')}
               </div>
             </div>
           </div>

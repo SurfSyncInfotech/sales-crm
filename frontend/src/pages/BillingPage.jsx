@@ -1,5 +1,22 @@
 import { useEffect, useState } from 'react';
 import { companiesApi, plansApi, paymentsApi } from '../api/client';
+import {
+  CreditCard,
+  Plus,
+  Search,
+  Filter,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  TrendingUp,
+  Printer,
+  X,
+  MessageSquare,
+  Trash2,
+  Calendar,
+  Building2,
+  ArrowRight,
+} from 'lucide-react';
 
 function money(n) {
   return new Intl.NumberFormat('en-IN', {
@@ -13,7 +30,7 @@ function formatDate(value) {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value).slice(0, 10);
-  return d.toLocaleDateString('en-IN');
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function numberToWords(num) {
@@ -36,50 +53,50 @@ function numberToWords(num) {
 
 const getInvoicePrintHtml = (p, company, plan) => {
   const planName = plan?.name || 'Trial';
-  const cycle = p.billing_cycle.toUpperCase();
+  const cycle = (p.billing_cycle || 'monthly').toUpperCase();
   const amtWords = numberToWords(p.amount);
   const isPaid = p.status === 'paid';
   const formattedDueDate = formatDate(p.due_date);
   const formattedInvoiceDate = formatDate(p.created_at || new Date());
-  
-  const featuresList = plan?.features 
-    ? (Array.isArray(plan.features) ? plan.features : JSON.parse(plan.features || '[]'))
+
+  const featuresList = plan?.features
+    ? Array.isArray(plan.features)
+      ? plan.features
+      : JSON.parse(plan.features || '[]')
     : ['Basic CRM Access', 'Lead Retrieval & Assignment', 'WhatsApp Integration', 'Basic Reports'];
 
   return `
     <html>
       <head>
-        <title>Invoice ${p.invoice_number} - ${company.name || 'Company'}</title>
+        <title>Invoice ${p.invoice_number} - ${company?.name || 'Company'}</title>
         <style>
-          body { font-family: 'Segoe UI', Roboto, sans-serif; color: #333; margin: 20px; line-height: 1.4; }
-          .invoice-box { max-width: 800px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px; }
-          .header-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          body { font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #111827; margin: 24px; line-height: 1.5; }
+          .invoice-box { max-width: 800px; margin: auto; padding: 24px; border: 1px solid #E6E9EE; border-radius: 12px; }
+          .header-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
           .header-table td { vertical-align: top; }
-          .company-name { font-size: 1.5rem; font-weight: 700; color: #1f9a5a; margin: 0 0 5px 0; }
-          .invoice-title { font-size: 1.25rem; font-weight: 700; color: #fff; background: #1f9a5a; padding: 5px 10px; border-radius: 4px; display: inline-block; float: right; }
-          .meta-table { width: 100%; border-collapse: collapse; background: #f4f6f5; border: 1px solid #ddd; margin-bottom: 20px; }
-          .meta-table td { padding: 10px; font-size: 0.9rem; border-right: 1px solid #ddd; }
+          .company-name { font-size: 1.4rem; font-weight: 800; color: #07A96A; margin: 0 0 6px 0; }
+          .invoice-title { font-size: 1.15rem; font-weight: 800; color: #067C52; background: #E8F8F0; padding: 6px 14px; border-radius: 6px; display: inline-block; float: right; border: 1px solid #B7E8D2; }
+          .meta-table { width: 100%; border-collapse: collapse; background: #F9FAFB; border: 1px solid #E6E9EE; border-radius: 8px; margin-bottom: 24px; }
+          .meta-table td { padding: 10px 14px; font-size: 0.88rem; border-right: 1px solid #E6E9EE; }
           .meta-table td:last-child { border-right: none; }
-          .grid-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          .grid-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
           .grid-table td { width: 50%; vertical-align: top; }
-          .bill-to-box { border: 1px solid #ddd; border-radius: 6px; padding: 15px; background: #fafafa; }
-          .bill-to-box h3 { margin: 0 0 10px 0; color: #1f9a5a; font-size: 1.1rem; }
-          .item-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-          .item-table th { background: #1f9a5a; color: #fff; text-align: left; padding: 10px; font-size: 0.9rem; }
-          .item-table td { padding: 12px 10px; border-bottom: 1px solid #eee; font-size: 0.9rem; vertical-align: top; }
-          .subtotal-row td { font-weight: 700; background: #f9f9f9; }
-          .bank-terms-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-          .bank-terms-table td { width: 50%; vertical-align: top; padding-right: 15px; }
-          .bank-box { border: 1px solid #b3d7ff; background: #f0f7ff; padding: 12px; border-radius: 6px; font-size: 0.85rem; }
-          .bank-box h4 { margin: 0 0 8px 0; color: #0056b3; }
-          .terms-box { border: 1px solid #ffeeba; background: #fff3cd; padding: 12px; border-radius: 6px; font-size: 0.8rem; color: #856404; }
-          .terms-box h4 { margin: 0 0 8px 0; }
-          .summary-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-          .summary-table td { padding: 8px; border-bottom: 1px solid #eee; }
-          .summary-table tr:last-child td { border-bottom: none; font-weight: 700; }
-          .summary-box { border: 1px solid #ddd; border-radius: 6px; padding: 12px; margin-bottom: 15px; }
-          .signatory-box { text-align: center; font-size: 0.8rem; margin-top: 30px; }
-          .signatory-box strong { display: block; margin-top: 40px; border-top: 1px solid #333; padding-top: 5px; width: 200px; margin-left: auto; }
+          .bill-to-box { border: 1px solid #E6E9EE; border-radius: 8px; padding: 16px; background: #FAFBFC; }
+          .bill-to-box h3 { margin: 0 0 8px 0; color: #07A96A; font-size: 0.95rem; text-transform: uppercase; font-weight: 800; }
+          .item-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+          .item-table th { background: #F9FAFB; color: #6B7280; text-align: left; padding: 10px 14px; font-size: 0.8rem; text-transform: uppercase; font-weight: 800; border-bottom: 1px solid #E6E9EE; }
+          .item-table td { padding: 14px; border-bottom: 1px solid #E6E9EE; font-size: 0.88rem; vertical-align: top; }
+          .subtotal-row td { font-weight: 800; background: #F9FAFB; }
+          .bank-terms-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+          .bank-terms-table td { width: 50%; vertical-align: top; padding-right: 16px; }
+          .bank-box { border: 1px solid #BFDBFE; background: #EFF6FF; padding: 14px; border-radius: 8px; font-size: 0.85rem; }
+          .bank-box h4 { margin: 0 0 6px 0; color: #0B6BE6; font-size: 0.95rem; }
+          .terms-box { border: 1px solid #FDE68A; background: #FEF7E1; padding: 14px; border-radius: 8px; font-size: 0.8rem; color: #A16207; }
+          .terms-box h4 { margin: 0 0 6px 0; }
+          .summary-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+          .summary-table td { padding: 8px 12px; border-bottom: 1px solid #E6E9EE; }
+          .summary-table tr:last-child td { border-bottom: none; font-weight: 800; }
+          .summary-box { border: 1px solid #E6E9EE; border-radius: 8px; padding: 12px; margin-bottom: 14px; background: #FFFFFF; }
           @media print {
             body { margin: 0; }
             .invoice-box { border: none; padding: 0; }
@@ -91,15 +108,16 @@ const getInvoicePrintHtml = (p, company, plan) => {
           <table class="header-table">
             <tr>
               <td>
-                <div class="company-name">SURFSYNC INFOTECH PRIVATE LIMITED</div>
-                <div style="font-size: 0.85rem; color: #555;">
-                  SurfSync Infotech Pvt. Ltd, Sector-75, Noida, UP 201301<br/>
-                  Mobile: 9429693456 | Email: info@surfsyncinfotech.in<br/>
+                <div class="company-name">PATRONPING TECHNOLOGIES</div>
+                <div style="font-size: 0.85rem; color: #4B5563;">
+                  PatronPing Enterprise Cloud Services<br/>
+                  Sector-75, Noida, UP 201301<br/>
+                  Support: billing@patronping.com | Phone: +91 9429693456<br/>
                   GSTIN: 10ABOCS8219H1Z8 | PAN: ABOCS8219H
                 </div>
               </td>
               <td style="text-align: right;">
-                <div class="invoice-title">BILL OF SUPPLY</div>
+                <div class="invoice-title">COMMERCIAL INVOICE</div>
               </td>
             </tr>
           </table>
@@ -114,35 +132,35 @@ const getInvoicePrintHtml = (p, company, plan) => {
 
           <table class="grid-table">
             <tr>
-              <td style="padding-right: 10px;">
+              <td style="padding-right: 12px;">
                 <div class="bill-to-box">
                   <h3>BILL TO</h3>
-                  <strong>${company.name || 'Company'}</strong><br/>
-                  ${[company.city, company.state, company.country].filter(Boolean).join(', ') || 'Address not set'}<br/>
-                  Email: ${company.admin_email || company.email || '—'}<br/>
-                  Phone: ${company.phone || '—'}
+                  <strong>${company?.name || 'Client Organization'}</strong><br/>
+                  ${[company?.city, company?.state, company?.country].filter(Boolean).join(', ') || 'Address not registered'}<br/>
+                  Email: ${company?.admin_email || company?.email || '—'}<br/>
+                  Phone: ${company?.phone || '—'}
                 </div>
               </td>
-              <td style="padding-left: 10px;">
+              <td style="padding-left: 12px;">
                 <div class="summary-box">
                   <table class="summary-table">
                     <tr>
-                      <td>Total Amount:</td>
-                      <td style="text-align: right; font-weight: 600;">${money(p.amount)}</td>
+                      <td>Total Billed:</td>
+                      <td style="text-align: right; font-weight: 700;">${money(p.amount)}</td>
                     </tr>
                     <tr>
-                      <td>Received Amount:</td>
-                      <td style="text-align: right; color: #1f9a5a; font-weight: 600;">${money(isPaid ? p.amount : 0)}</td>
+                      <td>Amount Settled:</td>
+                      <td style="text-align: right; color: #16A34A; font-weight: 700;">${money(isPaid ? p.amount : 0)}</td>
                     </tr>
                     <tr>
                       <td>Balance Due:</td>
-                      <td style="text-align: right; color: #c53929; font-weight: 700;">${money(isPaid ? 0 : p.amount)}</td>
+                      <td style="text-align: right; color: ${isPaid ? '#16A34A' : '#DC2626'}; font-weight: 800;">${money(isPaid ? 0 : p.amount)}</td>
                     </tr>
                   </table>
                 </div>
-                <div style="border: 1px solid #d2e3fc; background: #e8f0fe; padding: 10px; border-radius: 6px; font-size: 0.85rem;">
+                <div style="border: 1px solid #BFDBFE; background: #EFF6FF; padding: 10px 12px; border-radius: 8px; font-size: 0.85rem;">
                   <strong>Amount in words:</strong><br/>
-                  <span style="font-style: italic; color: #1a73e8;">${amtWords}</span>
+                  <span style="font-style: italic; color: #0B6BE6;">${amtWords}</span>
                 </div>
               </td>
             </tr>
@@ -151,28 +169,28 @@ const getInvoicePrintHtml = (p, company, plan) => {
           <table class="item-table">
             <thead>
               <tr>
-                <th>SERVICES</th>
-                <th style="text-align: right; width: 120px;">RATE</th>
-                <th style="text-align: right; width: 120px;">AMOUNT</th>
+                <th>SERVICES & QUOTAS</th>
+                <th style="text-align: right; width: 130px;">RATE</th>
+                <th style="text-align: right; width: 130px;">AMOUNT</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td>
-                  <strong style="color: #1f9a5a;">SURFSYNC CRM SUBSCRIPTION — ${planName.toUpperCase()} PLAN</strong>
-                  <div style="font-size: 0.8rem; color: #666; margin-top: 8px;">
-                    Scope of Work & Features:
-                    <ul style="margin: 5px 0 0 0; padding-left: 20px;">
-                      ${featuresList.map(f => `<li>${f}</li>`).join('')}
+                  <strong style="color: #07A96A;">PATRONPING SALES ENTERPRISE — ${planName.toUpperCase()} PLAN (${cycle})</strong>
+                  <div style="font-size: 0.82rem; color: #4B5563; margin-top: 6px;">
+                    Included modules & features:
+                    <ul style="margin: 4px 0 0 0; padding-left: 18px;">
+                      ${featuresList.map((f) => `<li>${f}</li>`).join('')}
                     </ul>
                   </div>
                 </td>
-                <td style="text-align: right; font-weight: 600;">${money(p.amount)}</td>
-                <td style="text-align: right; font-weight: 600;">${money(p.amount)}</td>
+                <td style="text-align: right; font-weight: 700;">${money(p.amount)}</td>
+                <td style="text-align: right; font-weight: 700;">${money(p.amount)}</td>
               </tr>
               <tr class="subtotal-row">
-                <td>SUBTOTAL</td>
-                <td colspan="2" style="text-align: right; color: #1f9a5a;">${money(p.amount)}</td>
+                <td>TOTAL PAYABLE</td>
+                <td colspan="2" style="text-align: right; color: #07A96A; font-size: 1rem;">${money(p.amount)}</td>
               </tr>
             </tbody>
           </table>
@@ -181,35 +199,24 @@ const getInvoicePrintHtml = (p, company, plan) => {
             <tr>
               <td>
                 <div class="bank-box">
-                  <h4>Bank Details</h4>
-                  <strong>Name:</strong> SURFSYNC INFOTECH PVT. LTD.<br/>
-                  <strong>IFSC Code:</strong> SBIN0001483<br/>
+                  <h4>Settlement Account Details</h4>
+                  <strong>Beneficiary:</strong> PATRONPING TECHNOLOGIES PVT. LTD.<br/>
+                  <strong>Bank:</strong> State Bank of India<br/>
                   <strong>Account No:</strong> 45182936194<br/>
-                  <strong>Bank:</strong> State Bank of India, LAL GANJ
+                  <strong>IFSC:</strong> SBIN0001483<br/>
+                  <strong>UPI:</strong> 9429693456@sbi
                 </div>
               </td>
               <td>
                 <div class="terms-box">
-                  <h4>Terms and Conditions</h4>
-                  1. Payment must be made within the due date.<br/>
-                  2. Deliverables and rights are transferred after full payment.<br/>
-                  3. Any work beyond scope will be charged additionally.<br/>
-                  4. Payments once made are non-refundable.<br/>
-                  5. All disputes shall be subject to the jurisdiction of Patna, Bihar.
+                  <h4>Terms & Payment Conditions</h4>
+                  1. Payments are due upon receipt or before the indicated due date.<br/>
+                  2. Automated WABA and CRM access renews upon transaction settlement.<br/>
+                  3. Invoices are computer generated and valid without signature.
                 </div>
               </td>
             </tr>
           </table>
-
-          <div class="signatory-box">
-            <div style="font-size: 0.85rem; font-weight: 600; color: #555; margin-bottom: 50px;">
-              AUTHORISED SIGNATORY FOR SURFSYNC INFOTECH PRIVATE LIMITED
-            </div>
-            <div style="font-family: 'Courier New', Courier, monospace; font-size: 1.1rem; color: #0056b3; font-style: italic; font-weight: bold;">
-              SurfSync Infotech Pvt. Ltd.
-            </div>
-            <strong>Authorised Signatory</strong>
-          </div>
         </div>
       </body>
     </html>
@@ -225,11 +232,11 @@ export default function BillingPage() {
   const [busy, setBusy] = useState(false);
 
   // Filter
-  const [filterType, setFilterType] = useState('all'); // 'all' | 'pending' | 'paid' | 'overdue'
+  const [filterType, setFilterType] = useState('all');
 
   // Modal control
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [activeInvoice, setActiveInvoice] = useState(null); // for previewing invoice
+  const [activeInvoice, setActiveInvoice] = useState(null);
 
   // Form state
   const [form, setForm] = useState({
@@ -249,9 +256,9 @@ export default function BillingPage() {
         companiesApi.list(),
         plansApi.list(),
       ]);
-      setPayments(payRes.payments);
-      setCompanies(compRes.companies);
-      setPlans(planRes.plans);
+      setPayments(payRes.payments || []);
+      setCompanies(compRes.companies || []);
+      setPlans(planRes.plans || []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -297,8 +304,10 @@ export default function BillingPage() {
       const planId = selectedCompany.plan_id ? String(selectedCompany.plan_id) : 'trial';
       const selectedPlan = plans.find((p) => String(p.id) === planId);
       const isYearly = form.billing_cycle === 'yearly';
-      const amount = selectedPlan 
-        ? (isYearly ? selectedPlan.price_yearly : selectedPlan.price_monthly)
+      const amount = selectedPlan
+        ? isYearly
+          ? selectedPlan.price_yearly
+          : selectedPlan.price_monthly
         : '0';
 
       setForm((prev) => ({
@@ -333,7 +342,6 @@ export default function BillingPage() {
         notes: form.notes,
       });
       setShowCreateModal(false);
-      // Reset form
       setForm({
         company_id: '',
         plan_id: '',
@@ -387,7 +395,6 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   };
 
-  // Stats calculation
   const stats = payments.reduce(
     (acc, p) => {
       const isOverdue =
@@ -407,7 +414,6 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
     { pending: 0, paid: 0, overdue: 0, revenue: 0 }
   );
 
-  // Filtered Payments list
   const filteredPayments = payments.filter((p) => {
     if (filterType === 'all') return true;
     if (filterType === 'paid') return p.status === 'paid';
@@ -417,286 +423,583 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
   });
 
   return (
-    <div className="page">
-      <header className="page-head">
+    <div className="sa-billing-page" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <style>{`
+        .sa-billing-page,
+        .sa-billing-page * {
+          font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+          box-sizing: border-box;
+        }
+        .sa-field-label {
+          display: block;
+          font-size: 13px;
+          font-weight: 700;
+          color: #374151;
+          margin-bottom: 6px;
+        }
+        .sa-form-input {
+          width: 100%;
+          height: 38px;
+          padding: 0 12px;
+          border-radius: 10px;
+          border: 1px solid #D0D5DD;
+          background-color: #FFFFFF;
+          font-size: 13.5px;
+          color: #111827;
+          outline: none;
+          transition: border-color 0.15s ease;
+        }
+        .sa-form-input:focus {
+          border-color: #0B6BE6;
+          box-shadow: 0 0 0 4px rgba(11, 107, 230, 0.15);
+        }
+      `}</style>
+
+      {/* 1. Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <p className="eyebrow">Finance</p>
-          <h1>Billing</h1>
-          <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
-            Manage invoices and track payments
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '11px',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              color: '#07A96A',
+              marginBottom: '4px',
+            }}
+          >
+            <span>Finance & Audit</span>
+            <span style={{ color: '#D1D5DB' }}>/</span>
+            <span>Commercial Invoicing</span>
+          </div>
+          <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#111827', margin: 0, letterSpacing: '-0.025em' }}>
+            Billing & Invoices
+          </h1>
+          <p style={{ margin: '4px 0 0 0', color: '#6B7280', fontSize: '13.5px' }}>
+            Manage invoices, audit settled platform transactions, and track account receivables.
           </p>
         </div>
+
         <button
           type="button"
-          className="primary-btn"
-          style={{ backgroundColor: 'var(--green-600)', borderColor: 'var(--green-600)' }}
           onClick={() => setShowCreateModal(true)}
+          style={{
+            height: '40px',
+            padding: '0 18px',
+            borderRadius: '12px',
+            background: 'linear-gradient(180deg, #07A96A 0%, #036F45 100%)',
+            border: 'none',
+            color: '#FFFFFF',
+            fontSize: '13.5px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 1px 2px rgba(3, 111, 69, 0.35)',
+          }}
         >
-          + Create Invoice
+          <Plus size={16} />
+          <span>+ Create Invoice</span>
         </button>
-      </header>
+      </div>
 
-      {error && <div className="alert">{error}</div>}
+      {error && (
+        <div style={{ padding: '12px 16px', borderRadius: '12px', backgroundColor: '#FEECEC', color: '#DC2626', border: '1px solid #FECACA', fontSize: '13.5px', fontWeight: 600 }}>
+          {error}
+        </div>
+      )}
 
-      {/* STAT CARDS */}
-      <section className="stat-grid" style={{ marginTop: '1.25rem' }}>
-        <article className="stat-card">
-          <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#666' }}>PENDING</span>
-          <strong style={{ color: '#d9534f' }}>{stats.pending}</strong>
-        </article>
-        <article className="stat-card">
-          <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#666' }}>PAID</span>
-          <strong style={{ color: 'var(--green-600)' }}>{stats.paid}</strong>
-        </article>
-        <article className="stat-card">
-          <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#666' }}>OVERDUE</span>
-          <strong style={{ color: '#c65911' }}>{stats.overdue}</strong>
-        </article>
-        <article className="stat-card accent" style={{ borderLeftColor: 'var(--green-600)' }}>
-          <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#fff' }}>TOTAL REVENUE</span>
-          <strong style={{ color: '#fff' }}>{money(stats.revenue)}</strong>
-        </article>
-      </section>
-
-      {/* FILTER ROW */}
-      <div className="gov-table-stack" style={{ marginTop: '1.5rem' }}>
-        <div className="gov-table-toolbar" style={{ borderBottom: 'none', paddingBottom: 0 }}>
-          <div className="gov-table-tools" style={{ gap: '0.5rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}>
-              FILTER:
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                style={{ padding: '0.35rem 0.75rem', borderRadius: '6px', border: '1px solid #ccc' }}
-              >
-                <option value="all">All</option>
-                <option value="pending">Pending</option>
-                <option value="paid">Paid</option>
-                <option value="overdue">Overdue</option>
-              </select>
-            </label>
+      {/* 2. Top Summary KPI Cards (4 Stats) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', padding: '20px', boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#4B5563' }}>Pending Invoices</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#FEF7E1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#A16207' }}>
+              <Clock size={16} />
+            </div>
+          </div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#A16207', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
+            {stats.pending}
+          </div>
+          <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}>
+            Awaiting client remittance
           </div>
         </div>
 
-        {/* PAYMENTS TABLE */}
-        <div className="gov-table-wrap">
-          <div className="gov-table-scroll">
-            <table className="gov-table">
-              <thead style={{ backgroundColor: 'var(--green-600)', color: '#ffffff' }}>
-                <tr>
-                  <th style={{ color: '#ffffff' }}>INVOICE #</th>
-                  <th style={{ color: '#ffffff' }}>COMPANY</th>
-                  <th style={{ color: '#ffffff' }}>PLAN</th>
-                  <th style={{ color: '#ffffff' }}>AMOUNT</th>
-                  <th style={{ color: '#ffffff' }}>CYCLE</th>
-                  <th style={{ color: '#ffffff' }}>DUE DATE</th>
-                  <th style={{ color: '#ffffff' }}>STATUS</th>
-                  <th style={{ color: '#ffffff' }}>ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={8} className="gov-empty" style={{ textAlign: 'center' }}>
-                      Loading invoices…
-                    </td>
-                  </tr>
-                ) : filteredPayments.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="gov-empty" style={{ textAlign: 'center', padding: '2rem' }}>
-                      No invoices found.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredPayments.map((p, index) => {
-                    const isOverdue =
-                      p.status === 'pending' && p.due_date && new Date(p.due_date) < new Date();
-                    return (
-                      <tr key={p.id} className={index % 2 === 1 ? 'gov-row-alt' : ''}>
-                        <td className="gov-strong">{p.invoice_number}</td>
-                        <td className="gov-strong" style={{ color: 'var(--green-600)' }}>{p.company_name}</td>
-                        <td>{p.plan_name || 'Trial'}</td>
-                        <td style={{ fontWeight: '600' }}>{money(p.amount)}</td>
-                        <td style={{ textTransform: 'uppercase' }}>{p.billing_cycle}</td>
-                        <td>{formatDate(p.due_date)}</td>
-                        <td>
-                          <span
-                            className={`badge`}
-                            style={{
-                              backgroundColor: p.status === 'paid' ? '#e2f0d9' : isOverdue ? '#fce4d6' : '#fff3cd',
-                              color: p.status === 'paid' ? '#385723' : isOverdue ? '#c65911' : '#856404',
-                              border: `1px solid ${p.status === 'paid' ? '#c5e0b4' : isOverdue ? '#f8cbad' : '#ffeeba'}`,
-                              textTransform: 'uppercase',
-                              fontWeight: '600',
-                            }}
-                          >
-                            {p.status === 'paid' ? 'PAID' : isOverdue ? 'OVERDUE' : 'PENDING'}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="gov-actions" style={{ gap: '0.4rem' }}>
-                            <button
-                              type="button"
-                              className="gov-btn"
-                              onClick={() => setActiveInvoice(p)}
-                              style={{ backgroundColor: '#e8f0fe', color: '#1a73e8', borderColor: '#d2e3fc' }}
-                            >
-                              Invoice
-                            </button>
-                            {p.status === 'pending' && (
-                              <button
-                                type="button"
-                                className="gov-btn"
-                                onClick={() => handleMarkPaid(p.id)}
-                                style={{ backgroundColor: '#fff4eb', color: 'var(--green-600)', borderColor: 'var(--green-200)' }}
-                              >
-                                Mark Paid
-                              </button>
-                            )}
-                            <a
-                              href={getWhatsAppLink(p)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="gov-btn"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                backgroundColor: '#25d366',
-                                color: '#fff',
-                                borderColor: '#25d366',
-                                textDecoration: 'none',
-                                fontWeight: '500',
-                              }}
-                            >
-                              WhatsApp
-                            </a>
-                            <button
-                              type="button"
-                              className="gov-btn gov-btn-danger"
-                              onClick={() => handleDelete(p.id)}
-                              style={{ backgroundColor: '#fcdcd8', color: '#c53929', borderColor: '#f8b6ae' }}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', padding: '20px', boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#4B5563' }}>Settled Invoices</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#E8F7EE', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#16A34A' }}>
+              <CheckCircle2 size={16} />
+            </div>
+          </div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#16A34A', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
+            {stats.paid}
+          </div>
+          <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}>
+            Paid & credited invoices
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', padding: '20px', boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#4B5563' }}>Overdue Invoices</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#FEECEC', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626' }}>
+              <AlertTriangle size={16} />
+            </div>
+          </div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#DC2626', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
+            {stats.overdue}
+          </div>
+          <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}>
+            Past specified due dates
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '18px', padding: '20px', boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#4B5563' }}>Total Revenue</span>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#E8F8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#067C52' }}>
+              <TrendingUp size={16} />
+            </div>
+          </div>
+          <div style={{ fontSize: '28px', fontWeight: 800, color: '#067C52', marginTop: '8px', fontVariantNumeric: 'tabular-nums' }}>
+            {money(stats.revenue)}
+          </div>
+          <div style={{ fontSize: '12px', color: '#6B7280', marginTop: '4px' }}>
+            All-time collected revenue
           </div>
         </div>
       </div>
 
-      {/* CREATE INVOICE MODAL */}
+      {/* 3. Toolbar & Status Filter */}
+      <div
+        style={{
+          backgroundColor: '#FFFFFF',
+          border: '1px solid #E6E9EE',
+          borderRadius: '14px',
+          padding: '12px 18px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+          boxShadow: '0 1px 2px rgba(16,24,40,0.02)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: '#4B5563' }}>Filter:</span>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            style={{
+              height: '36px',
+              padding: '0 12px',
+              borderRadius: '8px',
+              border: '1px solid #D0D5DD',
+              fontSize: '13px',
+              color: '#111827',
+              outline: 'none',
+              cursor: 'pointer',
+              backgroundColor: '#FFFFFF',
+            }}
+          >
+            <option value="all">All Invoices</option>
+            <option value="pending">Pending Only</option>
+            <option value="paid">Paid Only</option>
+            <option value="overdue">Overdue Only</option>
+          </select>
+        </div>
+
+        <div style={{ fontSize: '13px', color: '#6B7280' }}>
+          Matching records: <strong style={{ color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{filteredPayments.length}</strong>
+        </div>
+      </div>
+
+      {/* 4. High-Density Enterprise Table */}
+      <div
+        style={{
+          backgroundColor: '#FFFFFF',
+          border: '1px solid #E6E9EE',
+          borderRadius: '18px',
+          overflow: 'hidden',
+          boxShadow: '0 1px 3px rgba(16,24,40,0.02)',
+        }}
+      >
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', minWidth: '960px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+            <thead>
+              <tr
+                style={{
+                  backgroundColor: '#F9FAFB',
+                  borderBottom: '1px solid #E6E9EE',
+                  color: '#6B7280',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <th style={{ padding: '12px 16px', minWidth: '150px' }}>INVOICE #</th>
+                <th style={{ padding: '12px 16px', minWidth: '190px' }}>COMPANY</th>
+                <th style={{ padding: '12px 16px', minWidth: '130px' }}>PLAN</th>
+                <th style={{ padding: '12px 16px', minWidth: '130px' }}>AMOUNT</th>
+                <th style={{ padding: '12px 16px', minWidth: '100px' }}>CYCLE</th>
+                <th style={{ padding: '12px 16px', minWidth: '130px' }}>DUE DATE</th>
+                <th style={{ padding: '12px 16px', minWidth: '110px' }}>STATUS</th>
+                <th style={{ padding: '12px 16px', textAlign: 'right', minWidth: '240px' }}>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} style={{ padding: '40px 16px', textAlign: 'center', color: '#6B7280' }}>
+                    Loading billing ledger…
+                  </td>
+                </tr>
+              ) : filteredPayments.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ padding: '40px 16px', textAlign: 'center', color: '#9CA3AF' }}>
+                    No invoice transactions found matching this view.
+                  </td>
+                </tr>
+              ) : (
+                filteredPayments.map((p, index) => {
+                  const isOverdue =
+                    p.status === 'pending' && p.due_date && new Date(p.due_date) < new Date();
+
+                  return (
+                    <tr
+                      key={p.id}
+                      style={{
+                        borderBottom: '1px solid #F3F4F6',
+                        backgroundColor: index % 2 === 1 ? '#FAFBFC' : '#FFFFFF',
+                      }}
+                    >
+                      <td style={{ padding: '12px 16px', fontWeight: 800, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>
+                        {p.invoice_number}
+                      </td>
+
+                      <td style={{ padding: '12px 16px', fontWeight: 700, color: '#07A96A' }}>
+                        {p.company_name}
+                      </td>
+
+                      <td style={{ padding: '12px 16px', color: '#4B5563' }}>
+                        {p.plan_name || 'Trial'}
+                      </td>
+
+                      <td style={{ padding: '12px 16px', fontWeight: 800, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>
+                        {money(p.amount)}
+                      </td>
+
+                      <td style={{ padding: '12px 16px', textTransform: 'capitalize', color: '#6B7280' }}>
+                        {p.billing_cycle}
+                      </td>
+
+                      <td style={{ padding: '12px 16px', color: '#4B5563', fontVariantNumeric: 'tabular-nums' }}>
+                        {formatDate(p.due_date)}
+                      </td>
+
+                      <td style={{ padding: '12px 16px' }}>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: '9999px',
+                            backgroundColor:
+                              p.status === 'paid'
+                                ? '#E8F7EE'
+                                : isOverdue
+                                ? '#FEECEC'
+                                : '#FEF7E1',
+                            color:
+                              p.status === 'paid'
+                                ? '#16A34A'
+                                : isOverdue
+                                ? '#DC2626'
+                                : '#A16207',
+                            border: `1px solid ${
+                              p.status === 'paid'
+                                ? '#BBF7D0'
+                                : isOverdue
+                                ? '#FECACA'
+                                : '#FDE68A'
+                            }`,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {p.status === 'paid' ? 'PAID' : isOverdue ? 'OVERDUE' : 'PENDING'}
+                        </span>
+                      </td>
+
+                      <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => setActiveInvoice(p)}
+                            style={{
+                              height: '28px',
+                              padding: '0 8px',
+                              borderRadius: '6px',
+                              border: '1px solid #BFDBFE',
+                              backgroundColor: '#EFF6FF',
+                              color: '#0B6BE6',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Invoice
+                          </button>
+
+                          {p.status === 'pending' && (
+                            <button
+                              type="button"
+                              onClick={() => handleMarkPaid(p.id)}
+                              style={{
+                                height: '28px',
+                                padding: '0 8px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                background: 'linear-gradient(180deg, #07A96A 0%, #036F45 100%)',
+                                color: '#FFFFFF',
+                                fontSize: '11.5px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Mark Paid
+                            </button>
+                          )}
+
+                          <a
+                            href={getWhatsAppLink(p)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              height: '28px',
+                              padding: '0 8px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              backgroundColor: '#25D366',
+                              color: '#FFFFFF',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              textDecoration: 'none',
+                            }}
+                          >
+                            <MessageSquare size={12} />
+                            <span>WhatsApp</span>
+                          </a>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(p.id)}
+                            style={{
+                              height: '28px',
+                              padding: '0 8px',
+                              borderRadius: '6px',
+                              border: '1px solid #FCA5A5',
+                              backgroundColor: '#FFFFFF',
+                              color: '#DC2626',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 5. CREATE INVOICE MODAL */}
       {showCreateModal && (
-        <div className="modal-overlay">
-          <div className="modal-card" style={{ maxWidth: '600px' }}>
-            <h3 style={{ backgroundColor: 'var(--green-600)', color: '#fff', margin: '-1.75rem -1.75rem 1.25rem -1.75rem', padding: '1.25rem 1.75rem', borderRadius: '12px 12px 0 0', fontWeight: '700' }}>
-              CREATE INVOICE
-            </h3>
-            <form onSubmit={handleCreateInvoice} style={{ display: 'grid', gap: '0.85rem' }}>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontWeight: '500' }}>
-                Company *
-                <select
-                  value={form.company_id}
-                  onChange={(e) => handleCompanyChange(e.target.value)}
-                  required
-                  style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #ccc' }}
-                >
-                  <option value="">Select company</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(11, 17, 24, 0.45)',
+            backdropFilter: 'blur(3px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '16px',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !busy) setShowCreateModal(false);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '20px',
+              maxWidth: '560px',
+              width: '100%',
+              padding: '24px',
+              boxShadow: '0 12px 32px -8px rgba(16, 24, 40, 0.18)',
+              border: '1px solid #E6E9EE',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#111827', margin: 0 }}>
+                  Create Customer Invoice
+                </h3>
+                <p style={{ fontSize: '12.5px', color: '#6B7280', margin: '2px 0 0 0' }}>
+                  Generate a commercial billing record and payment order for tenant organization.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
 
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontWeight: '500' }}>
-                Subscription Plan *
-                <select
-                  value={form.plan_id}
-                  onChange={(e) => handlePlanChange(e.target.value)}
-                  required
-                  style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #ccc' }}
-                >
-                  <option value="">Select plan</option>
-                  <option value="trial">Trial (No Plan)</option>
-                  {plans.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontWeight: '500' }}>
-                  Billing Cycle
+            <form onSubmit={handleCreateInvoice}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
+                <div>
+                  <label className="sa-field-label">Target Company *</label>
                   <select
-                    value={form.billing_cycle}
-                    onChange={(e) => handleCycleChange(e.target.value)}
-                    style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #ccc' }}
-                  >
-                    <option value="monthly">Monthly</option>
-                    <option value="yearly">Yearly</option>
-                  </select>
-                </label>
-
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontWeight: '500' }}>
-                  Amount (INR) *
-                  <input
-                    type="number"
-                    value={form.amount}
-                    onChange={(e) => setForm((prev) => ({ ...prev, amount: e.target.value }))}
+                    value={form.company_id}
+                    onChange={(e) => handleCompanyChange(e.target.value)}
                     required
-                    style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #ccc' }}
+                    className="sa-form-input"
+                  >
+                    <option value="">Select Tenant Company</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label className="sa-field-label">Plan Tier</label>
+                    <select
+                      value={form.plan_id}
+                      onChange={(e) => handlePlanChange(e.target.value)}
+                      className="sa-form-input"
+                    >
+                      <option value="">Trial Plan</option>
+                      {plans.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="sa-field-label">Billing Cycle</label>
+                    <select
+                      value={form.billing_cycle}
+                      onChange={(e) => handleCycleChange(e.target.value)}
+                      className="sa-form-input"
+                    >
+                      <option value="monthly">Monthly</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label className="sa-field-label">Amount (INR) *</label>
+                    <input
+                      type="number"
+                      value={form.amount}
+                      onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                      required
+                      placeholder="e.g. 4999"
+                      className="sa-form-input"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="sa-field-label">Due Date</label>
+                    <input
+                      type="date"
+                      value={form.due_date}
+                      onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))}
+                      className="sa-form-input"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="sa-field-label">Notes & Payment Reference</label>
+                  <textarea
+                    value={form.notes}
+                    onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                    rows={2}
+                    placeholder="PO number, payment terms, or custom scope notes..."
+                    className="sa-form-input"
+                    style={{ height: 'auto', padding: '10px 12px' }}
                   />
-                </label>
+                </div>
               </div>
 
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontWeight: '500' }}>
-                Due Date
-                <input
-                  type="date"
-                  value={form.due_date}
-                  onChange={(e) => setForm((prev) => ({ ...prev, due_date: e.target.value }))}
-                  required
-                  style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #ccc' }}
-                />
-              </label>
-
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontWeight: '500' }}>
-                Notes
-                <textarea
-                  value={form.notes}
-                  onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Invoice notes or payment terms"
-                  rows={3}
-                  style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #ccc', resize: 'vertical' }}
-                />
-              </label>
-
-              <div className="modal-actions" style={{ margin: '0.5rem 0 0 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                 <button
                   type="button"
-                  className="gov-btn"
                   onClick={() => setShowCreateModal(false)}
                   disabled={busy}
-                  style={{ color: 'var(--green-600)', borderColor: '#ddd', backgroundColor: '#f9f9f9', fontWeight: '600' }}
+                  style={{
+                    height: '38px',
+                    padding: '0 16px',
+                    borderRadius: '10px',
+                    border: '1px solid #D0D5DD',
+                    backgroundColor: '#FFFFFF',
+                    color: '#374151',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="primary-btn"
                   disabled={busy}
-                  style={{ backgroundColor: 'var(--green-600)', color: '#fff', border: 'none', fontWeight: '600' }}
+                  style={{
+                    height: '38px',
+                    padding: '0 20px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: 'linear-gradient(180deg, #07A96A 0%, #036F45 100%)',
+                    color: '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: busy ? 'not-allowed' : 'pointer',
+                  }}
                 >
-                  {busy ? 'Creating…' : 'Create Invoice'}
+                  {busy ? 'Generating…' : 'Generate Invoice'}
                 </button>
               </div>
             </form>
@@ -704,185 +1007,124 @@ Please login to your portal to make the payment: ${window.location.origin}/c/${c
         </div>
       )}
 
-      {/* PREVIEW INVOICE MODAL */}
-      {activeInvoice && (() => {
-        const company = companies.find((c) => c.id === activeInvoice.company_id) || {};
-        const plan = plans.find((pl) => pl.id === activeInvoice.plan_id) || {};
-        const planName = plan?.name || 'Trial';
-        const isPaid = activeInvoice.status === 'paid';
-        const amtWords = numberToWords(activeInvoice.amount);
-        const formattedDueDate = formatDate(activeInvoice.due_date);
-        const formattedInvoiceDate = formatDate(activeInvoice.created_at || new Date());
-        
-        const featuresList = plan?.features 
-          ? (Array.isArray(plan.features) ? plan.features : JSON.parse(plan.features || '[]'))
-          : ['Basic CRM Access', 'Lead Retrieval & Assignment', 'WhatsApp Integration', 'Basic Reports'];
+      {/* 6. INVOICE PREVIEW & PRINT MODAL */}
+      {activeInvoice && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(11, 17, 24, 0.55)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 110,
+            padding: '16px',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setActiveInvoice(null);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '20px',
+              maxWidth: '860px',
+              width: '100%',
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              boxShadow: '0 16px 40px rgba(0,0,0,0.2)',
+              border: '1px solid #E6E9EE',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '16px 24px',
+                borderBottom: '1px solid #E6E9EE',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                backgroundColor: '#F9FAFB',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '15px', fontWeight: 800, color: '#111827' }}>
+                  Invoice: {activeInvoice.invoice_number}
+                </span>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '9999px',
+                    backgroundColor: activeInvoice.status === 'paid' ? '#E8F7EE' : '#FEF7E1',
+                    color: activeInvoice.status === 'paid' ? '#16A34A' : '#A16207',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {activeInvoice.status}
+                </span>
+              </div>
 
-        const handlePrint = () => {
-          const win = window.open('', '_blank');
-          win.document.write(getInvoicePrintHtml(activeInvoice, company, plan));
-          win.document.close();
-          win.focus();
-          setTimeout(() => {
-            win.print();
-          }, 500);
-        };
-
-        return (
-          <div className="modal-overlay">
-            <div className="modal-card" style={{ maxWidth: '850px', width: '90%', maxHeight: '90vh', overflowY: 'auto', padding: 0, border: 'none' }}>
-              
-              {/* Header actions */}
-              <h3 style={{ backgroundColor: 'var(--green-600)', color: '#fff', margin: 0, padding: '1rem 1.5rem', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Invoice {activeInvoice.invoice_number} — {company.name}</span>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <button
-                    type="button"
-                    className="primary-btn"
-                    onClick={handlePrint}
-                    style={{ backgroundColor: 'var(--green-600)', color: '#fff', border: 'none', padding: '0.45rem 1rem', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', borderRadius: '4px' }}
-                  >
-                    Print / Download PDF
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveInvoice(null)}
-                    style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer', padding: 0, margin: 0, lineHeight: 1 }}
-                  >
-                    &times;
-                  </button>
-                </div>
-              </h3>
-
-              {/* Invoice body in React */}
-              <div style={{ padding: '2rem', background: '#fff', color: '#333', fontSize: '0.9rem', lineHeight: '1.5', textAlign: 'left' }}>
-                
-                {/* Header Table */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid var(--green-600)', paddingBottom: '1.5rem', marginBottom: '1.5rem' }}>
-                  <div>
-                    <h2 style={{ margin: '0 0 0.5rem 0', color: 'var(--green-600)', fontSize: '1.5rem', fontWeight: '700' }}>SURFSYNC INFOTECH PRIVATE LIMITED</h2>
-                    <div style={{ fontSize: '0.85rem', color: '#555' }}>
-                      SurfSync Infotech Pvt. Ltd, Sector-75, Noida, UP 201301<br />
-                      Mobile: 9429693456 | Email: info@surfsyncinfotech.in<br />
-                      GSTIN: 10ABOCS8219H1Z8 | PAN: ABOCS8219H
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '1.1rem', fontWeight: '700', color: '#fff', background: 'var(--green-600)', padding: '0.4rem 0.8rem', borderRadius: '4px', textTransform: 'uppercase' }}>
-                      BILL OF SUPPLY
-                    </span>
-                  </div>
-                </div>
-
-                {/* Meta Bar */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', backgroundColor: '#f4f6f5', border: '1px solid #ddd', padding: '0.85rem', borderRadius: '6px', marginBottom: '1.5rem' }}>
-                  <div><strong>Invoice No:</strong> {activeInvoice.invoice_number}</div>
-                  <div><strong>Invoice Date:</strong> {formattedInvoiceDate}</div>
-                  <div><strong>Due Date:</strong> {formattedDueDate}</div>
-                </div>
-
-                {/* Grid layout */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                  <div style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '1.25rem', backgroundColor: '#fafafa' }}>
-                    <h4 style={{ margin: '0 0 0.75rem 0', color: 'var(--green-600)', fontSize: '1.05rem', fontWeight: '700' }}>BILL TO</h4>
-                    <strong style={{ fontSize: '1.05rem' }}>{company.name || 'Company Name'}</strong>
-                    <div style={{ marginTop: '0.5rem', color: '#555' }}>
-                      {[company.city, company.state, company.country].filter(Boolean).join(', ') || 'Address not set'}<br />
-                      Email: {company.admin_email || company.email || '—'}<br />
-                      Phone: {company.phone || '—'}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '1rem', marginBottom: '0.85rem' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <tbody>
-                          <tr style={{ borderBottom: '1px solid #eee' }}>
-                            <td style={{ padding: '0.5rem 0' }}>Total Amount:</td>
-                            <td style={{ textAlign: 'right', fontWeight: '600' }}>{money(activeInvoice.amount)}</td>
-                          </tr>
-                          <tr style={{ borderBottom: '1px solid #eee' }}>
-                            <td style={{ padding: '0.5rem 0' }}>Received Amount:</td>
-                            <td style={{ textAlign: 'right', color: 'var(--green-600)', fontWeight: '600' }}>{money(isPaid ? activeInvoice.amount : 0)}</td>
-                          </tr>
-                          <tr>
-                            <td style={{ padding: '0.5rem 0' }}>Balance Due:</td>
-                            <td style={{ textAlign: 'right', color: '#c53929', fontWeight: '700' }}>{money(isPaid ? 0 : activeInvoice.amount)}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    <div style={{ border: '1px solid #d2e3fc', backgroundColor: '#e8f0fe', padding: '0.85rem', borderRadius: '6px' }}>
-                      <strong style={{ fontSize: '0.8rem', color: '#1a73e8' }}>Amount in words:</strong>
-                      <div style={{ fontStyle: 'italic', fontWeight: '600', color: '#1a73e8', marginTop: '0.25rem' }}>{amtWords}</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Items Table */}
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1.5rem' }}>
-                  <thead>
-                    <tr style={{ backgroundColor: 'var(--green-600)', color: '#fff' }}>
-                      <th style={{ textAlign: 'left', padding: '0.75rem', fontSize: '0.85rem', fontWeight: '600', color: '#fff' }}>SERVICES</th>
-                      <th style={{ textAlign: 'right', padding: '0.75rem', fontSize: '0.85rem', fontWeight: '600', width: '120px', color: '#fff' }}>RATE</th>
-                      <th style={{ textAlign: 'right', padding: '0.75rem', fontSize: '0.85rem', fontWeight: '600', width: '120px', color: '#fff' }}>AMOUNT</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '1rem 0.75rem' }}>
-                        <strong style={{ color: 'var(--green-600)' }}>SURFSYNC CRM SUBSCRIPTION — {planName.toUpperCase()} PLAN</strong>
-                        <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.5rem' }}>
-                          Scope of Work & Features:
-                          <ul style={{ margin: '0.25rem 0 0 0', paddingLeft: '1.25rem' }}>
-                            {featuresList.map((f) => <li key={f}>{f}</li>)}
-                          </ul>
-                        </div>
-                      </td>
-                      <td style={{ textAlign: 'right', padding: '1rem 0.75rem', fontWeight: '600', verticalAlign: 'top' }}>{money(activeInvoice.amount)}</td>
-                      <td style={{ textAlign: 'right', padding: '1rem 0.75rem', fontWeight: '600', verticalAlign: 'top' }}>{money(activeInvoice.amount)}</td>
-                    </tr>
-                    <tr style={{ backgroundColor: '#f9f9f9', fontWeight: '700' }}>
-                      <td style={{ padding: '0.75rem' }}>SUBTOTAL</td>
-                      <td colSpan={2} style={{ textAlign: 'right', padding: '0.75rem', color: 'var(--green-600)' }}>{money(activeInvoice.amount)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                {/* Bank / Terms */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-                  <div style={{ border: '1px solid #b3d7ff', backgroundColor: '#f0f7ff', padding: '1rem', borderRadius: '6px', fontSize: '0.85rem' }}>
-                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#0056b3', fontWeight: '700' }}>Bank Details</h4>
-                    <strong>Name:</strong> SURFSYNC INFOTECH PVT. LTD.<br />
-                    <strong>IFSC Code:</strong> SBIN0001483<br />
-                    <strong>Account No:</strong> 45182936194<br />
-                    <strong>Bank:</strong> State Bank of India, LAL GANJ
-                  </div>
-                  <div style={{ border: '1px solid #ffeeba', backgroundColor: '#fff3cd', padding: '1rem', borderRadius: '6px', fontSize: '0.8rem', color: '#856404' }}>
-                    <h4 style={{ margin: '0 0 0.5rem 0', fontWeight: '700' }}>Terms and Conditions</h4>
-                    1. Payment must be made within the due date.<br />
-                    2. Deliverables and rights are transferred after full payment.<br />
-                    3. Any work beyond scope will be charged additionally.<br />
-                    4. Payments once made are non-refundable.<br />
-                    5. All disputes shall be subject to the jurisdiction of Patna, Bihar.
-                  </div>
-                </div>
-
-                {/* Footer close */}
-                <div style={{ borderTop: '1px solid #eee', paddingTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    type="button"
-                    className="gov-btn"
-                    onClick={() => setActiveInvoice(null)}
-                    style={{ backgroundColor: '#f2f2f2', border: '1px solid #ccc', padding: '0.5rem 1.5rem', borderRadius: '6px' }}
-                  >
-                    Close
-                  </button>
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const company = companies.find((c) => c.id === activeInvoice.company_id);
+                    const plan = plans.find((p) => p.name === activeInvoice.plan_name);
+                    const html = getInvoicePrintHtml(activeInvoice, company, plan);
+                    const win = window.open('', '_blank');
+                    win.document.write(html);
+                    win.document.close();
+                    win.focus();
+                    setTimeout(() => win.print(), 300);
+                  }}
+                  style={{
+                    height: '34px',
+                    padding: '0 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #D0D5DD',
+                    backgroundColor: '#FFFFFF',
+                    color: '#374151',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <Printer size={14} />
+                  <span>Print / PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveInvoice(null)}
+                  style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', padding: '4px' }}
+                >
+                  <X size={18} />
+                </button>
               </div>
             </div>
+
+            {/* Modal Body Preview iframe */}
+            <div style={{ flex: 1, padding: '16px', minHeight: '520px', backgroundColor: '#F9FAFB' }}>
+              <iframe
+                title="Invoice Preview"
+                srcDoc={getInvoicePrintHtml(
+                  activeInvoice,
+                  companies.find((c) => c.id === activeInvoice.company_id),
+                  plans.find((p) => p.name === activeInvoice.plan_name)
+                )}
+                style={{ width: '100%', height: '560px', border: '1px solid #E6E9EE', borderRadius: '12px', backgroundColor: '#FFFFFF' }}
+              />
+            </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
     </div>
   );
 }

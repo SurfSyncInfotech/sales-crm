@@ -1,3 +1,5 @@
+const path = require('path');
+const fs = require('fs');
 const pool = require('../config/db');
 const pinbot = require('./pinbot');
 const { logActivity } = require('./pipeline');
@@ -243,6 +245,53 @@ function inboundBody(message) {
   );
 }
 
+async function downloadMetaMedia(mediaId) {
+  const token = process.env.META_SYSTEM_ACCESS_TOKEN;
+  if (!token || !mediaId) return null;
+  try {
+    const metaRes = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!metaRes.ok) return null;
+    const metaData = await metaRes.json();
+    const fileUrl = metaData.url;
+    const mimeType = metaData.mime_type || '';
+
+    const binRes = await fetch(fileUrl, {
+      headers: { Authorization: `Bearer ${token}`, 'User-Agent': 'curl/7.64.1' }
+    });
+    if (!binRes.ok) return null;
+
+    let ext = 'ogg';
+    if (mimeType.includes('mpeg') || mimeType.includes('mp3')) ext = 'mp3';
+    else if (mimeType.includes('wav')) ext = 'wav';
+    else if (mimeType.includes('m4a') || mimeType.includes('mp4') || mimeType.includes('aac')) ext = 'm4a';
+    else if (mimeType.includes('jpeg') || mimeType.includes('jpg')) ext = 'jpg';
+    else if (mimeType.includes('png')) ext = 'png';
+    else if (mimeType.includes('webp')) ext = 'webp';
+    else if (mimeType.includes('pdf')) ext = 'pdf';
+
+    const uploadsInboundDir = path.resolve(__dirname, '../../uploads/inbound');
+    if (!fs.existsSync(uploadsInboundDir)) fs.mkdirSync(uploadsInboundDir, { recursive: true });
+
+    const filename = `wa_${mediaId}.${ext}`;
+    const filePath = path.join(uploadsInboundDir, filename);
+    const buf = Buffer.from(await binRes.arrayBuffer());
+    fs.writeFileSync(filePath, buf);
+
+    return {
+      filename,
+      filePath,
+      relativeUrl: `/uploads/inbound/${filename}`,
+      mimeType,
+      fileSize: buf.length
+    };
+  } catch (err) {
+    console.error('[Download Meta Media Error]', err.message);
+    return null;
+  }
+}
+
 /** Process a Meta-format webhook body (inbound messages + delivery statuses) for one company. */
 async function handleWebhook(companyId, body) {
   const settings = await getSettings(companyId);
@@ -273,12 +322,30 @@ async function handleWebhook(companyId, body) {
         if (dupe[0]) continue;
 
         const lead = await findLeadByPhone(companyId, message.from, defaultCc);
-        const text = inboundBody(message);
+        let text = inboundBody(message);
+        let msgType = message.type || 'text';
+        let payload = { ...message };
+
+        const mediaId = message.image?.id || message.audio?.id || message.voice?.id || message.document?.id;
+        if (mediaId) {
+          const downloaded = await downloadMetaMedia(mediaId);
+          if (downloaded) {
+            payload.link = downloaded.relativeUrl;
+            payload.media_url = downloaded.relativeUrl;
+            payload.mime_type = downloaded.mimeType;
+          }
+          if (msgType === 'audio' || msgType === 'voice') {
+            text = text || '🎙️ Voice note';
+          } else if (msgType === 'image') {
+            text = text || '[Photo]';
+          }
+        }
+
         await pool.query(
           `INSERT INTO whatsapp_messages
              (company_id, lead_id, direction, wa_message_id, phone, msg_type, body, payload, status)
            VALUES (?, ?, 'in', ?, ?, ?, ?, ?, 'received')`,
-          [companyId, lead?.id || null, message.id, message.from, message.type || 'text', text, JSON.stringify(message)]
+          [companyId, lead?.id || null, message.id, message.from, msgType, text, JSON.stringify(payload)]
         );
 
         if (lead) {
@@ -320,5 +387,6 @@ module.exports = {
   sendToLead,
   sendWelcomeIfEnabled,
   findLeadByPhone,
+  downloadMetaMedia,
   handleWebhook,
 };

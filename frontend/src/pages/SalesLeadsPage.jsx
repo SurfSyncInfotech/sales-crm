@@ -7,6 +7,7 @@ import WonDealModal from '../components/WonDealModal';
 import LostDealModal from '../components/LostDealModal';
 import WhatsAppChatModal from '../components/WhatsAppChatModal';
 import StatusFeedbackModal from '../components/StatusFeedbackModal';
+import CampaignFilterDropdown from '../components/CampaignFilterDropdown';
 import {
   Users,
   Zap,
@@ -27,6 +28,7 @@ import {
   CheckCircle2,
   X,
   Calendar,
+  Target,
 } from 'lucide-react';
 
 function getLocalDateStr(dateVal) {
@@ -72,6 +74,27 @@ export default function SalesLeadsPage() {
   const [stageFilter, setStageFilter] = useState(searchParams.get('stage') || 'all');
   const [sourceFilter, setSourceFilter] = useState('all');
   const [timeFilter, setTimeFilter] = useState('all');
+  const [campaignFilter, setCampaignFilter] = useState('all');
+
+  // Dynamic campaigns extracted from loaded leads
+  const dynamicCampaigns = useMemo(() => {
+    const set = new Set();
+    let hasDirectWhatsApp = false;
+    if (Array.isArray(leads)) {
+      leads.forEach((l) => {
+        if (l.campaign && String(l.campaign).trim()) {
+          set.add(String(l.campaign).trim());
+        } else {
+          hasDirectWhatsApp = true;
+        }
+      });
+    }
+    const list = Array.from(set).sort();
+    if (!list.includes('Direct WhatsApp')) {
+      list.push('Direct WhatsApp');
+    }
+    return list;
+  }, [leads]);
 
   // Selection
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
@@ -273,6 +296,11 @@ export default function SalesLeadsPage() {
       const matchesSource =
         sourceFilter === 'all' ||
         (Boolean(l.source_name) && l.source_name.toLowerCase().includes((sourceFilter || '').toLowerCase()));
+      const matchesCampaign =
+        campaignFilter === 'all' ||
+        (campaignFilter === 'Direct WhatsApp'
+          ? (!l.campaign || !String(l.campaign).trim())
+          : Boolean(l.campaign) && l.campaign.toLowerCase().trim() === campaignFilter.toLowerCase().trim());
 
       let matchesTime = true;
       if (timeFilter !== 'all') {
@@ -297,14 +325,14 @@ export default function SalesLeadsPage() {
         }
       }
 
-      return matchesSearch && matchesStage && matchesSource && matchesTime;
+      return matchesSearch && matchesStage && matchesSource && matchesCampaign && matchesTime;
     });
-  }, [leads, search, stageFilter, sourceFilter, timeFilter]);
+  }, [leads, search, stageFilter, sourceFilter, timeFilter, campaignFilter]);
 
   // Reset pagination to page 1 whenever filters change
   useEffect(() => {
     setPage(1);
-  }, [search, stageFilter, sourceFilter, timeFilter, currentTab]);
+  }, [search, stageFilter, sourceFilter, timeFilter, campaignFilter, currentTab]);
 
   const totalPages = Math.ceil(filteredLeads.length / pageSize) || 1;
   const paginatedLeads = useMemo(() => {
@@ -577,7 +605,7 @@ export default function SalesLeadsPage() {
           </div>
 
           {/* Reset Filters button */}
-          {(search || stageFilter !== 'all' || sourceFilter !== 'all' || timeFilter !== 'all') && (
+          {(search || stageFilter !== 'all' || sourceFilter !== 'all' || timeFilter !== 'all' || campaignFilter !== 'all') && (
             <button
               type="button"
               onClick={() => {
@@ -585,6 +613,7 @@ export default function SalesLeadsPage() {
                 setStageFilter('all');
                 setSourceFilter('all');
                 setTimeFilter('all');
+                setCampaignFilter('all');
               }}
               style={{
                 display: 'inline-flex',
@@ -675,6 +704,16 @@ export default function SalesLeadsPage() {
             <option value="direct">Direct Entry</option>
             <option value="referral">Referral</option>
           </select>
+
+          {/* Dynamic Campaign Filter */}
+          <CampaignFilterDropdown
+            value={campaignFilter}
+            onChange={setCampaignFilter}
+            campaigns={dynamicCampaigns}
+            allLabel="All Campaigns"
+            allValue="all"
+            height="32px"
+          />
 
           {/* Time Filter Dropdown */}
           <select
@@ -831,16 +870,63 @@ export default function SalesLeadsPage() {
                       {lead.lead_company || '—'}
                     </td>
                     <td>
-                      <span
-                        className="badge-status"
-                        style={{
-                          backgroundColor: '#F1F3F6',
-                          color: '#374151',
-                          fontSize: '0.68rem',
-                        }}
-                      >
-                        {lead.source_name || 'Website'}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
+                        <span
+                          className="badge-status"
+                          style={{
+                            backgroundColor: '#F1F3F6',
+                            color: '#374151',
+                            fontSize: '0.68rem',
+                          }}
+                        >
+                          {lead.source_name || 'Website'}
+                        </span>
+                        {lead.campaign ? (
+                          <span
+                            className="badge-status"
+                            style={{
+                              backgroundColor: '#EFF6FF',
+                              color: '#1D4ED8',
+                              border: '1px solid #DBEAFE',
+                              fontSize: '0.66rem',
+                              fontWeight: 700,
+                              padding: '1px 5px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              maxWidth: '150px',
+                            }}
+                            title={`Campaign: ${lead.campaign}`}
+                          >
+                            <Target size={10} color="#2563EB" style={{ flexShrink: 0 }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {lead.campaign}
+                            </span>
+                          </span>
+                        ) : (
+                          <span
+                            className="badge-status"
+                            style={{
+                              backgroundColor: '#ECFDF5',
+                              color: '#065F46',
+                              border: '1px solid #A7F3D0',
+                              fontSize: '0.66rem',
+                              fontWeight: 700,
+                              padding: '1px 5px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              maxWidth: '150px',
+                            }}
+                            title="Direct Inbound WhatsApp Lead"
+                          >
+                            <MessageSquare size={10} color="#059669" style={{ flexShrink: 0 }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              Direct WhatsApp
+                            </span>
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -1012,9 +1098,11 @@ export default function SalesLeadsPage() {
               outline: 'none',
             }}
           >
+            <option value={10}>10 per page</option>
             <option value={15}>15 per page</option>
-            <option value={30}>30 per page</option>
+            <option value={25}>25 per page</option>
             <option value={50}>50 per page</option>
+            <option value={100}>100 per page</option>
           </select>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>

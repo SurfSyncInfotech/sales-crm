@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 const mysql = require('mysql2/promise');
 
 async function columnExists(conn, table, column) {
@@ -123,11 +123,36 @@ async function ensureCrmSchema({ silent = false } = {}) {
         INDEX idx_wam_lead (lead_id, created_at),
         INDEX idx_wam_company (company_id, created_at)
       );
+      CREATE TABLE IF NOT EXISTS lead_transfers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        company_id INT NOT NULL,
+        from_salesperson_id INT NOT NULL,
+        to_salesperson_id INT NOT NULL,
+        transferred_by INT NOT NULL,
+        leads_count INT NOT NULL DEFAULT 0,
+        reminders_count INT NOT NULL DEFAULT 0,
+        notes TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_lt_company (company_id, created_at),
+        INDEX idx_lt_to (to_salesperson_id),
+        INDEX idx_lt_from (from_salesperson_id)
+      );
     `);
 
     await addColumn(conn, 'leads', 'stage_id', 'stage_id INT NULL', silent);
     await addColumn(conn, 'leads', 'domain_id', 'domain_id INT NULL', silent);
     await addColumn(conn, 'leads', 'opted_out', 'opted_out TINYINT(1) NOT NULL DEFAULT 0', silent);
+    await addColumn(conn, 'leads', 'is_transferred', 'is_transferred TINYINT(1) NOT NULL DEFAULT 0', silent);
+    await addColumn(conn, 'leads', 'transferred_from_id', 'transferred_from_id INT NULL', silent);
+    await addColumn(conn, 'leads', 'transferred_from_name', 'transferred_from_name VARCHAR(160) NULL', silent);
+    await addColumn(conn, 'leads', 'transferred_at', 'transferred_at DATETIME NULL', silent);
+    await addColumn(conn, 'lead_reminders', 'is_transferred', 'is_transferred TINYINT(1) NOT NULL DEFAULT 0', silent);
+    await addColumn(conn, 'users', 'custom_role', 'custom_role VARCHAR(100) NULL', silent);
+    await addColumn(conn, 'users', 'permissions', 'permissions JSON NULL', silent);
+
+    try {
+      await conn.query("ALTER TABLE whatsapp_messages MODIFY COLUMN direction VARCHAR(20) NOT NULL DEFAULT 'out'");
+    } catch (e) {}
 
     if (!silent) console.log('CRM pipeline / domains / WhatsApp schema ready');
   } finally {

@@ -133,7 +133,6 @@ export default function QuotationsPage() {
         <div style={{
           backgroundColor: '#FFFFFF',
           border: '1px solid #E6E9EE',
-          borderLeft: '4px solid #F68713',
           borderRadius: '12px',
           padding: '16px 20px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
@@ -163,7 +162,6 @@ export default function QuotationsPage() {
         <div style={{
           backgroundColor: '#FFFFFF',
           border: '1px solid #E6E9EE',
-          borderLeft: '4px solid #2A9CB8',
           borderRadius: '12px',
           padding: '16px 20px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
@@ -193,7 +191,6 @@ export default function QuotationsPage() {
         <div style={{
           backgroundColor: '#FFFFFF',
           border: '1px solid #E6E9EE',
-          borderLeft: '4px solid #3B82F6',
           borderRadius: '12px',
           padding: '16px 20px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
@@ -223,7 +220,6 @@ export default function QuotationsPage() {
         <div style={{
           backgroundColor: '#FFFFFF',
           border: '1px solid #E6E9EE',
-          borderLeft: '4px solid #059669',
           borderRadius: '12px',
           padding: '16px 20px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.03)',

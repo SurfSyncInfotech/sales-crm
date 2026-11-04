@@ -18,6 +18,7 @@ const salesRoutes = require('./routes/sales');
 const companyWabaRoutes = require('./routes/companyWaba');
 const adminWabaRoutes = require('./routes/adminWaba');
 const notificationsRoutes = require('./routes/notifications');
+const demoRequestsRoutes = require('./routes/demoRequests');
 const { ensureWabaSchema } = require('./migrate_waba');
 
 async function start() {
@@ -67,6 +68,7 @@ async function start() {
     { prefix: '/plans', handler: planRoutes },
     { prefix: '/payments', handler: paymentRoutes },
     { prefix: '/dashboard', handler: dashboardRoutes },
+    { prefix: '/demo-requests', handler: demoRequestsRoutes },
   ];
 
   mountRoutes.forEach(({ prefix, handler }) => {

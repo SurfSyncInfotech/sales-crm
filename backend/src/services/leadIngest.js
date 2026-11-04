@@ -77,7 +77,7 @@ function normalizeLeadInput(payload = {}) {
     notes,
     tags: parseTags(data.tags),
     lead_date: data.lead_date || data.created_time || data.Date || new Date(),
-    status: data.status || 'new',
+    status: 'new',
     assigned_to: data.assigned_to || null,
   };
 }
@@ -158,6 +158,7 @@ async function createLeadFromPayload({
   externalId = null,
 }) {
   const normalized = { ...normalizeLeadInput(payload), ...overrides };
+  if (!createdBy && !overrides.status) normalized.status = 'new';
 
   if (!normalized.name) {
     const err = new Error('Lead name or phone/email is required');
@@ -233,7 +234,8 @@ async function createLeadFromPayload({
     const [src] = await pool.query('SELECT slug FROM lead_sources WHERE id = ? LIMIT 1', [sourceId]);
     sourceSlug = src[0]?.slug || null;
   }
-  await autoAssignLead(created[0], { payload, sourceSlug });
+  // Incoming leads remain unassigned in the pool until claimed by a sales rep
+  // await autoAssignLead(created[0], { payload, sourceSlug });
 
   const [rows] = await pool.query('SELECT * FROM leads WHERE id = ?', [result.insertId]);
   const lead = rows[0];

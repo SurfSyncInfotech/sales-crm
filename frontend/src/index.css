@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800;900&display=swap');
 
 :root {
   --green-50: #f0faf4;
@@ -47,11 +47,9 @@ body,
 }
 
 body {
-  background:
-    radial-gradient(circle at 12% -10%, rgba(31, 154, 90, 0.18), transparent 42%),
-    radial-gradient(circle at 90% 0%, rgba(183, 232, 203, 0.35), transparent 36%),
-    linear-gradient(180deg, #f6fbf8 0%, #f3faf6 48%, #ffffff 100%);
+  background-color: #F6F7F9;
   color: var(--ink);
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 a {
@@ -69,10 +67,13 @@ textarea {
 
 h1,
 h2,
-h3 {
-  font-family: 'Fraunces', Georgia, serif;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   margin: 0;
 }
 
@@ -99,20 +100,25 @@ h2 {
 
 .boot-screen {
   min-height: 100vh;
-  display: grid;
-  place-content: center;
-  gap: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #F6F7F9;
   text-align: center;
-  color: var(--ink-soft);
+  color: #111827;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .boot-orb {
-  width: 54px;
-  height: 54px;
+  width: 40px;
+  height: 40px;
   margin: 0 auto;
   border-radius: 50%;
-  background: conic-gradient(from 120deg, var(--green-500), #fff, var(--green-200), var(--green-600));
-  animation: spin 1.2s linear infinite;
+  border: 3px solid #E6E9EE;
+  border-top-color: #F68713;
+  border-right-color: #2A9CB8;
+  animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 @keyframes spin {
@@ -373,9 +379,10 @@ h2 {
 }
 
 .stat-card strong {
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 800;
   font-size: 1.7rem;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
 }
 
 .stat-card.accent {
@@ -657,7 +664,8 @@ h2 {
 
 .plan-price {
   margin: 0;
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-weight: 800;
   font-size: 2rem;
   color: var(--green-700);
 }
@@ -1744,9 +1752,10 @@ h2 {
 
   .mobile-topbar-meta strong {
     display: block;
-    font-family: 'Fraunces', Georgia, serif;
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 800;
     font-size: 1.2rem;
-    letter-spacing: -0.03em;
+    letter-spacing: -0.02em;
   }
 
   .avatar-btn {

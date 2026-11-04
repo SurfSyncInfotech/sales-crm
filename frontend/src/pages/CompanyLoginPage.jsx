@@ -48,10 +48,22 @@ export default function CompanyLoginPage() {
   const [successMsg, setSuccessMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const [selectedRole, setSelectedRole] = useState('admin');
+  const [availableRoles, setAvailableRoles] = useState([
+    { id: 'admin', label: 'Admin' },
+    { id: 'manager', label: 'Manager' },
+  ]);
+
   // Hook 1: Load company portal info if slug is present
   useEffect(() => {
     if (!slug) {
       setLoadingPortal(false);
+      authApi
+        .companyRoles()
+        .then((data) => {
+          if (Array.isArray(data.roles) && data.roles.length > 0) setAvailableRoles(data.roles);
+        })
+        .catch(() => {});
       return;
     }
 
@@ -61,10 +73,24 @@ export default function CompanyLoginPage() {
       .then((data) => {
         setCompanyName(data.company.name);
         if (data.company.admin_email) setEmail(data.company.admin_email);
+        if (Array.isArray(data.roles) && data.roles.length > 0) {
+          setAvailableRoles(data.roles);
+        }
       })
       .catch((err) => setError(err.message || 'Company portal not found'))
       .finally(() => setLoadingPortal(false));
   }, [slug]);
+
+  const handleEmailBlur = async () => {
+    if (!slug && email && email.includes('@')) {
+      try {
+        const data = await authApi.companyRoles({ email: email.trim() });
+        if (Array.isArray(data.roles) && data.roles.length > 0) {
+          setAvailableRoles(data.roles);
+        }
+      } catch {}
+    }
+  };
 
   // Hook 2: OTP Resend countdown
   useEffect(() => {
@@ -77,7 +103,8 @@ export default function CompanyLoginPage() {
     return () => clearInterval(timer);
   }, [resendCountdown]);
 
-  if (user) return <Navigate to="/company" replace />;
+  const targetSlug = slug || user?.company?.slug || user?.company_slug;
+  if (user) return <Navigate to={targetSlug ? `/${targetSlug}` : '/company'} replace />;
 
   // Submit standard login
   async function handleSubmit(e) {
@@ -85,8 +112,9 @@ export default function CompanyLoginPage() {
     setError('');
     setBusy(true);
     try {
-      await login(email.trim(), password);
-      navigate('/company');
+      const loggedInUser = await login(email.trim(), password, selectedRole);
+      const companySlug = slug || loggedInUser?.company?.slug || loggedInUser?.company_slug;
+      navigate(companySlug ? `/${companySlug}` : '/company');
     } catch (err) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
@@ -261,15 +289,62 @@ export default function CompanyLoginPage() {
                 </div>
               )}
 
+              {/* Role Selector */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', color: '#374151', marginBottom: '6px' }}>
+                  Select Your Role
+                </label>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns:
+                      availableRoles.length <= 2
+                        ? 'repeat(2, 1fr)'
+                        : availableRoles.length === 3
+                        ? 'repeat(3, 1fr)'
+                        : 'repeat(auto-fit, minmax(90px, 1fr))',
+                    gap: '8px',
+                  }}
+                >
+                  {availableRoles.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setSelectedRole(r.id)}
+                      style={{
+                        padding: '9px 10px',
+                        borderRadius: '8px',
+                        fontSize: '0.84rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        border: selectedRole === r.id ? '2px solid #059669' : '1px solid #E2E8F0',
+                        backgroundColor: selectedRole === r.id ? '#ECFDF5' : '#FFFFFF',
+                        color: selectedRole === r.id ? '#065F46' : '#64748B',
+                        textAlign: 'center',
+                        transition: 'all 0.15s ease',
+                        boxShadow: selectedRole === r.id ? '0 1px 3px rgba(5, 150, 105, 0.15)' : 'none',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      title={r.label}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Email */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', color: '#374151', marginBottom: '5px' }}>
-                  Company Admin Email
+                  Work Email Address
                 </label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onBlur={handleEmailBlur}
                   placeholder="admin@company.com"
                   autoComplete="username"
                   required
@@ -369,7 +444,7 @@ export default function CompanyLoginPage() {
                 className="btn-primary-action"
                 style={{ width: '100%', padding: '0.65rem 1rem', fontSize: '0.88rem', marginTop: '0.25rem' }}
               >
-                {busy ? 'Authenticating…' : 'Sign In as Company Admin'}
+                {busy ? 'Authenticating…' : 'Sign In to Company Portal'}
               </button>
 
               <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>

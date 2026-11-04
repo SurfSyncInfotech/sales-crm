@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { salesApi, companyPortalApi } from '../api/client';
 import QuotationRequestModal from '../components/QuotationRequestModal';
 import WonDealModal from '../components/WonDealModal';
 import LostDealModal from '../components/LostDealModal';
+import WhatsAppChatModal from '../components/WhatsAppChatModal';
+import CampaignFilterDropdown from '../components/CampaignFilterDropdown';
 import {
   Zap,
   Phone,
@@ -16,30 +19,57 @@ import {
   Ban,
   Search,
   MessageSquare,
+  MessageSquareText,
   IndianRupee,
   Users,
   Layers,
   ArrowRight,
   RefreshCw,
+  FileSpreadsheet,
+  Download,
   Sparkles,
+  Calendar,
+  Target,
 } from 'lucide-react';
 
 const STAGE_CONFIG = [
   { key: 'new_pool', title: 'New Leads (Pool)', icon: <Zap size={14} />, color: '#F68713', bg: '#FFF3E6', subtitle: 'Unassigned pool' },
-  { key: 'contacted', title: 'Contacted / Claimed', icon: <Phone size={14} />, color: '#2A9CB8', bg: '#E8F6FA', subtitle: 'Connected by rep' },
+  { key: 'claimed', title: 'Claimed', icon: <Phone size={14} />, color: '#F68713', bg: '#FFF3E6', subtitle: 'Claimed by rep' },
+  { key: 'contacted', title: 'Contacted', icon: <Phone size={14} />, color: '#2A9CB8', bg: '#E8F6FA', subtitle: 'Initial call made' },
+  { key: 'not_interested', title: 'Not Interested', icon: <Ban size={14} />, color: '#6B7280', bg: '#F3F4F6', subtitle: 'Disqualified / Dropped' },
   { key: 'interested', title: 'Interested', icon: <Star size={14} />, color: '#059669', bg: '#ECFDF5', subtitle: 'Auto-cadence on' },
   { key: 'followup', title: 'Follow-Up', icon: <RotateCw size={14} />, color: '#2563EB', bg: '#EFF6FF', subtitle: 'Active discussion' },
   { key: 'quotation_requested', title: 'Quotation Requested', icon: <FileText size={14} />, color: '#D97706', bg: '#FEF3C7', subtitle: 'Admin quote needed' },
   { key: 'quotation_sent', title: 'Quotation Sent', icon: <Send size={14} />, color: '#7C3AED', bg: '#F5F3FF', subtitle: 'Phase 2 closing' },
   { key: 'won', title: 'Won Deals', icon: <Trophy size={14} />, color: '#059669', bg: '#ECFDF5', subtitle: 'Deal converted' },
   { key: 'lost', title: 'Lost Deals', icon: <XCircle size={14} />, color: '#DC2626', bg: '#FEF2F2', subtitle: 'Deal lost' },
-  { key: 'not_interested', title: 'Not Interested', icon: <Ban size={14} />, color: '#6B7280', bg: '#F3F4F6', subtitle: 'Disqualified' },
 ];
 
+function formatLeadDate(dateVal) {
+  if (!dateVal) return '';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export default function PipelinePage() {
+  const navigate = useNavigate();
+  const { companySlug } = useParams();
+  const { user } = useAuth('company');
+  const isAdmin = user?.role === 'company_admin' || user?.role === 'superadmin';
+  const isManager = String(user?.custom_role || '').trim().toLowerCase() === 'manager';
+  const canChangeStatus = isAdmin || isManager;
   const [pipeline, setPipeline] = useState({});
+  const [exporting, setExporting] = useState(false);
   const [teamMembers, setTeamMembers] = useState([]);
   const [selectedRep, setSelectedRep] = useState('all');
+  const [selectedCampaign, setSelectedCampaign] = useState('all');
+  const [campaignsList, setCampaignsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -50,18 +80,33 @@ export default function PipelinePage() {
   const [submittingWon, setSubmittingWon] = useState(false);
   const [lostModalLead, setLostModalLead] = useState(null);
   const [submittingLost, setSubmittingLost] = useState(false);
+  const [activeChatLead, setActiveChatLead] = useState(null);
   const [actingId, setActingId] = useState(null);
+
+  // Per-column progressive loading / pagination for Kanban scale
+  const [columnLimits, setColumnLimits] = useState({});
+  const getColLimit = (key) => columnLimits[key] || 25;
+  const loadMoreForCol = (key) => {
+    setColumnLimits((prev) => ({
+      ...prev,
+      [key]: (prev[key] || 25) + 25,
+    }));
+  };
 
   async function loadData(silent = false) {
     if (!silent) setLoading(true);
     setError('');
     try {
-      const [pipeData, teamData] = await Promise.all([
+      const [pipeData, teamData, campData] = await Promise.all([
         salesApi.pipeline(),
         companyPortalApi.team().catch(() => ({ team: [] })),
+        companyPortalApi.leadCampaigns().catch(() => ({ campaigns: [] })),
       ]);
       setPipeline(pipeData.pipeline || {});
       setTeamMembers(teamData.team || []);
+      if (campData?.campaigns && Array.isArray(campData.campaigns)) {
+        setCampaignsList(campData.campaigns);
+      }
     } catch (err) {
       if (!silent) setError(err.message || 'Failed to load pipeline data');
     } finally {
@@ -161,6 +206,44 @@ export default function PipelinePage() {
     }
   }
 
+  // Collect all unique live campaigns dynamically
+  const dynamicCampaigns = useMemo(() => {
+    const set = new Set(campaignsList.filter(Boolean));
+    let hasDirectWhatsApp = false;
+    Object.values(pipeline).forEach((stageLeads) => {
+      if (Array.isArray(stageLeads)) {
+        stageLeads.forEach((l) => {
+          if (l.campaign && String(l.campaign).trim()) {
+            set.add(String(l.campaign).trim());
+          } else {
+            hasDirectWhatsApp = true;
+          }
+        });
+      }
+    });
+    const list = Array.from(set).sort();
+    if (!list.includes('Direct WhatsApp')) {
+      list.push('Direct WhatsApp');
+    }
+    return list;
+  }, [campaignsList, pipeline]);
+
+  async function handleExportPipeline() {
+    setExporting(true);
+    try {
+      const campParam = selectedCampaign !== 'all' ? selectedCampaign : undefined;
+      if (companyPortalApi?.exportPipeline) {
+        await companyPortalApi.exportPipeline(campParam);
+      } else {
+        await salesApi.exportPipeline(campParam);
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to export pipeline');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   // Calculate high-level pipeline stats
   const stats = useMemo(() => {
     let totalLeads = 0;
@@ -170,42 +253,71 @@ export default function PipelinePage() {
 
     Object.entries(pipeline).forEach(([stage, leads]) => {
       leads.forEach((l) => {
-        totalLeads += 1;
-        if (stage === 'won' && l.deal_value) {
-          totalWonRevenue += Number(l.deal_value) || 0;
-        }
-        if (stage === 'quotation_requested') {
-          pendingQuotes += 1;
-        }
-        if (stage === 'interested' || stage === 'followup' || stage === 'quotation_sent') {
-          activeFollowups += 1;
+        const matchesCampaign =
+          selectedCampaign === 'all' ||
+          (selectedCampaign === 'Direct WhatsApp' || selectedCampaign === 'unassigned'
+            ? !l.campaign || !String(l.campaign).trim()
+            : String(l.campaign || '').trim().toLowerCase() === selectedCampaign.trim().toLowerCase());
+
+        const matchesRep =
+          selectedRep === 'all' ||
+          (selectedRep === 'unassigned' && (!l.claimed_by || l.claimed_by === 0)) ||
+          String(l.claimed_by) === String(selectedRep);
+
+        const matchesSearch =
+          !search ||
+          (l.name && l.name.toLowerCase().includes(search.toLowerCase())) ||
+          (l.phone && l.phone.includes(search)) ||
+          (l.lead_company && l.lead_company.toLowerCase().includes(search.toLowerCase()));
+
+        if (matchesCampaign && matchesRep && matchesSearch) {
+          totalLeads += 1;
+          if (stage === 'won' && l.deal_value) {
+            totalWonRevenue += Number(l.deal_value) || 0;
+          }
+          if (stage === 'quotation_requested') {
+            pendingQuotes += 1;
+          }
+          if (stage === 'interested' || stage === 'followup' || stage === 'quotation_sent') {
+            activeFollowups += 1;
+          }
         }
       });
     });
 
     return { totalLeads, totalWonRevenue, pendingQuotes, activeFollowups };
-  }, [pipeline]);
+  }, [pipeline, selectedCampaign, selectedRep, search]);
 
   return (
     <div className="company-pipeline-page" style={{ maxWidth: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#F68713', marginBottom: '4px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#F68713', marginBottom: '4px', fontFamily: 'Manrope, sans-serif' }}>
             <span>Commercial Operations</span>
             <span style={{ color: '#D1D5DB' }}>/</span>
-            <span>Revenue Pipeline</span>
+            <span>Inbound Pipeline</span>
           </div>
           <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#111827', margin: 0, letterSpacing: '-0.02em', fontFamily: 'Manrope, sans-serif' }}>
-            Enterprise Pipeline Kanban
+            Enterprise Pipeline
           </h1>
-          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6B7280' }}>
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#6B7280', fontFamily: 'Manrope, sans-serif' }}>
             Track deal progression, sales rep velocity, pending admin quotation approvals, and closed won transactions.
           </p>
         </div>
 
         {/* Controls Toolbar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* Dynamic Campaign Filter */}
+          <CampaignFilterDropdown
+            value={selectedCampaign}
+            onChange={setSelectedCampaign}
+            campaigns={dynamicCampaigns}
+            allLabel="All Campaigns"
+            allValue="all"
+            height="38px"
+          />
+
           {/* Salesperson Filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#FFFFFF', border: '1px solid #E6E9EE', borderRadius: '8px', padding: '0 10px', height: '38px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
             <Users size={14} color="#6B7280" />
@@ -264,6 +376,31 @@ export default function PipelinePage() {
 
           <button
             type="button"
+            onClick={handleExportPipeline}
+            disabled={exporting || loading}
+            title="Export all pipeline leads to Excel (.xlsx)"
+            style={{
+              height: '38px',
+              padding: '0 15px',
+              borderRadius: '8px',
+              border: '1px solid #10B981',
+              backgroundColor: '#ECFDF5',
+              color: '#065F46',
+              fontSize: '13px',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: exporting ? 'not-allowed' : 'pointer',
+              boxShadow: '0 1px 2px rgba(16,185,129,0.12)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <FileSpreadsheet size={15} color="#059669" />
+            <span>{exporting ? 'Exporting...' : 'Export Pipeline'}</span>
+          </button>
+          <button
+            type="button"
             onClick={() => loadData(false)}
             disabled={loading}
             style={{
@@ -291,7 +428,7 @@ export default function PipelinePage() {
       {/* KPI Stats Bar (Component 3.1) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
         {/* Total In Funnel */}
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px 20px', border: '1px solid #E6E9EE', borderLeft: '4px solid #111827', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px 20px', border: '1px solid #E6E9EE', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: '11px', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active Pipeline</div>
             <div className="num" style={{ fontSize: '26px', fontWeight: 800, color: '#111827', fontFamily: 'Manrope, sans-serif', marginTop: '4px' }}>{stats.totalLeads}</div>
@@ -302,7 +439,7 @@ export default function PipelinePage() {
         </div>
 
         {/* Won Revenue */}
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px 20px', border: '1px solid #E6E9EE', borderLeft: '4px solid #059669', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px 20px', border: '1px solid #E6E9EE', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: '11px', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Won Revenue</div>
             <div className="num" style={{ fontSize: '26px', fontWeight: 800, color: '#059669', fontFamily: 'Manrope, sans-serif', marginTop: '4px' }}>
@@ -315,7 +452,7 @@ export default function PipelinePage() {
         </div>
 
         {/* Quotes In Review */}
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px 20px', border: '1px solid #E6E9EE', borderLeft: '4px solid #F68713', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px 20px', border: '1px solid #E6E9EE', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: '11px', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span>Quotes in Queue</span>
@@ -331,7 +468,7 @@ export default function PipelinePage() {
         </div>
 
         {/* Active Negotiations */}
-        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px 20px', border: '1px solid #E6E9EE', borderLeft: '4px solid #2A9CB8', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', padding: '16px 20px', border: '1px solid #E6E9EE', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: '11px', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active Negotiations</div>
             <div className="num" style={{ fontSize: '26px', fontWeight: 800, color: '#2A9CB8', fontFamily: 'Manrope, sans-serif', marginTop: '4px' }}>{stats.activeFollowups}</div>
@@ -352,14 +489,17 @@ export default function PipelinePage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(9, minmax(290px, 1fr))',
+          gridTemplateColumns: `repeat(${STAGE_CONFIG.length}, minmax(290px, 1fr))`,
           gap: '14px',
           overflowX: 'auto',
           paddingBottom: '24px',
         }}
       >
         {STAGE_CONFIG.map((col) => {
-          const colLeads = (pipeline[col.key] || []).filter((l) => {
+          const colLeads = (pipeline[col.key] || [])
+            .slice()
+            .sort((a, b) => new Date(b.lead_date || b.created_at || 0) - new Date(a.lead_date || a.created_at || 0))
+            .filter((l) => {
             const matchesSearch =
               !search ||
               (l.name && l.name.toLowerCase().includes(search.toLowerCase())) ||
@@ -371,8 +511,18 @@ export default function PipelinePage() {
               (selectedRep === 'unassigned' && (!l.claimed_by || l.claimed_by === 0)) ||
               String(l.claimed_by) === String(selectedRep);
 
-            return matchesSearch && matchesRep;
+            const matchesCampaign =
+              selectedCampaign === 'all' ||
+              (selectedCampaign === 'Direct WhatsApp' || selectedCampaign === 'unassigned'
+                ? !l.campaign || !String(l.campaign).trim()
+                : String(l.campaign || '').trim().toLowerCase() === selectedCampaign.trim().toLowerCase());
+
+            return matchesSearch && matchesRep && matchesCampaign;
           });
+
+          const limit = getColLimit(col.key);
+          const visibleLeads = colLeads.slice(0, limit);
+          const remainingCount = Math.max(0, colLeads.length - limit);
 
           return (
             <div
@@ -464,7 +614,7 @@ export default function PipelinePage() {
                     No deals in this stage
                   </div>
                 ) : (
-                  colLeads.map((lead) => {
+                  visibleLeads.map((lead) => {
                     return (
                       <div
                         key={lead.id}
@@ -499,6 +649,72 @@ export default function PipelinePage() {
                           </span>
                         </div>
 
+                        {/* Prominent Lead Date & Time */}
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: '#475569',
+                          backgroundColor: '#F1F5F9',
+                          padding: '2px 7px',
+                          borderRadius: '5px',
+                          width: 'fit-content'
+                        }}>
+                          <Calendar size={12} color="#64748B" />
+                          <span>{formatLeadDate(lead.lead_date || lead.created_at) || 'Recently'}</span>
+                        </div>
+
+                        {/* Live Campaign or Direct WhatsApp Origin Badge */}
+                        {lead.campaign ? (
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontSize: '10.5px',
+                              fontWeight: 700,
+                              color: '#1E40AF',
+                              backgroundColor: '#EFF6FF',
+                              border: '1px solid #DBEAFE',
+                              padding: '2px 7px',
+                              borderRadius: '5px',
+                              width: 'fit-content',
+                              maxWidth: '100%',
+                            }}
+                            title={`Ad Campaign: ${lead.campaign}`}
+                          >
+                            <Target size={11} color="#2563EB" />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {lead.campaign}
+                            </span>
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontSize: '10.5px',
+                              fontWeight: 700,
+                              color: '#065F46',
+                              backgroundColor: '#ECFDF5',
+                              border: '1px solid #A7F3D0',
+                              padding: '2px 7px',
+                              borderRadius: '5px',
+                              width: 'fit-content',
+                              maxWidth: '100%',
+                            }}
+                            title="Direct Inbound WhatsApp Lead"
+                          >
+                            <MessageSquare size={11} color="#059669" />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              Direct WhatsApp
+                            </span>
+                          </div>
+                        )}
+
                         {/* Phone & Direct Contact */}
                         <div
                           style={{
@@ -514,46 +730,75 @@ export default function PipelinePage() {
                             {lead.phone || 'No phone'}
                           </span>
 
-                          {lead.phone && (
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                              <a
-                                href={`tel:${lead.phone}`}
-                                style={{
-                                  width: '24px',
-                                  height: '24px',
-                                  borderRadius: '6px',
-                                  backgroundColor: '#ECFDF5',
-                                  color: '#059669',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  textDecoration: 'none',
-                                }}
-                                title="Call directly"
-                              >
-                                <Phone size={11} />
-                              </a>
-                              <a
-                                href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, '')}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={{
-                                  width: '24px',
-                                  height: '24px',
-                                  borderRadius: '6px',
-                                  backgroundColor: '#ECFDF5',
-                                  color: '#047857',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  textDecoration: 'none',
-                                }}
-                                title="WhatsApp chat"
-                              >
-                                <MessageSquare size={11} />
-                              </a>
-                            </div>
-                          )}
+                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            {lead.phone && (
+                              <>
+                                <a
+                                  href={`tel:${lead.phone}`}
+                                  style={{
+                                    width: '24px',
+                                    height: '24px',
+                                    borderRadius: '6px',
+                                    backgroundColor: '#ECFDF5',
+                                    color: '#059669',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    textDecoration: 'none',
+                                  }}
+                                  title="Call directly"
+                                >
+                                  <Phone size={11} />
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveChatLead(lead)}
+                                  style={{
+                                    width: '24px',
+                                    height: '24px',
+                                    borderRadius: '6px',
+                                    backgroundColor: '#ECFDF5',
+                                    color: '#047857',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                  }}
+                                  title="Open WhatsApp Live Chat"
+                                >
+                                  <MessageSquare size={11} />
+                                </button>
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const searchKey = lead.phone || lead.name || '';
+                                const targetSlug = companySlug || 'company';
+                                navigate(`/${targetSlug}/feedbacks?search=${encodeURIComponent(searchKey)}`);
+                              }}
+                              style={{
+                                width: '24px',
+                                height: '24px',
+                                borderRadius: '6px',
+                                backgroundColor: '#FFF7ED',
+                                color: '#EA580C',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: '1px solid #FFEDD5',
+                                cursor: 'pointer',
+                                padding: 0,
+                                transition: 'all 0.15s ease',
+                              }}
+                              title="View Feedback Logs for this lead"
+                            >
+                              <MessageSquareText size={12} />
+                            </button>
+                          </div>
                         </div>
 
                         {/* Claimed Salesperson Tag */}
@@ -642,8 +887,13 @@ export default function PipelinePage() {
                           </div>
                         )}
 
-                        {/* Admin Action Bar */}
+                        {/* Admin / Manager Action Bar */}
                         <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {!canChangeStatus && (
+                            <div style={{ fontSize: '11px', color: '#6B7280', backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '6px', padding: '4px 8px', textAlign: 'center', fontWeight: 600 }}>
+                              Status: {(lead.status || 'new').replace(/_/g, ' ')}
+                            </div>
+                          )}
                           {col.key === 'quotation_requested' && (
                             <Link
                               to="/company/quotations"
@@ -723,6 +973,7 @@ export default function PipelinePage() {
                                 onChange={(e) => {
                                   if (e.target.value) handleMoveStage(lead, e.target.value);
                                 }}
+                                disabled={actingId === lead.id || !canChangeStatus}
                                 style={{
                                   width: '100%',
                                   padding: '4px 6px',
@@ -731,35 +982,76 @@ export default function PipelinePage() {
                                   borderRadius: '6px',
                                   border: '1px solid #E6E9EE',
                                   backgroundColor: '#FFFFFF',
-                                  color: '#6B7280',
+                                  color: '#374151',
                                   cursor: 'pointer',
                                 }}
                               >
-                                <option value="">Other stage actions…</option>
-                                <option value="quotation_requested">Need Quote Revision</option>
-                                <option value="followup">Back to Follow-Up</option>
-                                <option value="not_interested">Not Interested</option>
+                                <option value="" disabled>Move to any stage…</option>
+                                <option value="new">Stage: New Leads (Pool)</option>
+                                <option value="claimed">Stage: Claimed</option>
+                                <option value="contacted">Stage: Contacted</option>
+                                <option value="interested">Stage: Interested</option>
+                                <option value="followup">Stage: Follow-Up</option>
+                                <option value="quotation_requested">Stage: Need Quote Revision</option>
+                                <option value="quotation_sent">Stage: Quotation Sent</option>
+                                <option value="won">Mark as Won (Enter ₹)</option>
+                                <option value="lost">Mark as Lost (Reason)</option>
+                                <option value="not_interested">Stage: Not Interested</option>
                               </select>
                             </div>
                           ) : lead.status === 'won' ? (
-                            <div
-                              style={{
-                                padding: '4px 8px',
-                                backgroundColor: '#ECFDF5',
-                                borderRadius: '6px',
-                                fontSize: '11px',
-                                fontWeight: 700,
-                                color: '#059669',
-                                textAlign: 'center',
-                              }}
-                            >
-                              ✓ Closed & Won
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <div
+                                style={{
+                                  padding: '4px 8px',
+                                  backgroundColor: '#ECFDF5',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  color: '#059669',
+                                  textAlign: 'center',
+                                }}
+                              >
+                                ✓ Closed & Won
+                              </div>
+                              {canChangeStatus && (
+                                <select
+                                  value=""
+                                  onChange={(e) => {
+                                    if (e.target.value) handleMoveStage(lead, e.target.value);
+                                  }}
+                                  disabled={actingId === lead.id}
+                                  style={{
+                                    width: '100%',
+                                    padding: '4px 6px',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    borderRadius: '6px',
+                                    border: '1px solid #E6E9EE',
+                                    backgroundColor: '#FFFFFF',
+                                    color: '#6B7280',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <option value="" disabled>Change stage / Reopen…</option>
+                                  <option value="new">Stage: New Leads (Pool)</option>
+                                  <option value="claimed">Stage: Claimed</option>
+                                  <option value="contacted">Stage: Contacted</option>
+                                  <option value="interested">Stage: Interested</option>
+                                  <option value="followup">Stage: Follow-Up</option>
+                                  <option value="quotation_requested">Stage: Quotation Requested</option>
+                                  <option value="quotation_sent">Stage: Quotation Sent</option>
+                                  <option value="lost">Mark as Lost (Reason)</option>
+                                  <option value="not_interested">Stage: Not Interested</option>
+                                </select>
+                              )}
                             </div>
                           ) : (
                             <select
                               value={lead.status || 'contacted'}
                               onChange={(e) => handleMoveStage(lead, e.target.value)}
-                              disabled={actingId === lead.id}
+                              disabled={actingId === lead.id || !canChangeStatus}
+                              title={!canChangeStatus ? 'Only Admin and Manager can change stage' : 'Change deal stage'}
                               style={{
                                 width: '100%',
                                 padding: '5px 8px',
@@ -775,18 +1067,51 @@ export default function PipelinePage() {
                               <option value={lead.status} disabled>
                                 Current: {lead.status}
                               </option>
+                              <option value="new">Stage: New Leads (Pool)</option>
+                              <option value="claimed">Stage: Claimed</option>
+                              <option value="contacted">Stage: Contacted</option>
                               <option value="interested">Stage: Interested</option>
                               <option value="followup">Stage: Follow-Up</option>
                               <option value="quotation_requested">Stage: Quotation Requested</option>
+                              <option value="quotation_sent">Stage: Quotation Sent</option>
                               <option value="won">Mark as Won (Enter ₹)</option>
                               <option value="lost">Mark as Lost (Reason)</option>
-                              <option value="not_interested">Not Interested</option>
+                              <option value="not_interested">Stage: Not Interested</option>
                             </select>
                           )}
                         </div>
                       </div>
                     );
                   })
+                )}
+
+                {remainingCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => loadMoreForCol(col.key)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      margin: '4px 0 2px 0',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      borderRadius: '8px',
+                      border: '1px solid #E6E9EE',
+                      backgroundColor: '#FFFFFF',
+                      color: '#F68713',
+                      cursor: 'pointer',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#FFF7ED'; e.currentTarget.style.borderColor = '#FED7AA'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#FFFFFF'; e.currentTarget.style.borderColor = '#E6E9EE'; }}
+                  >
+                    <span>Load More ({remainingCount} remaining)</span>
+                  </button>
                 )}
               </div>
             </div>
@@ -821,6 +1146,15 @@ export default function PipelinePage() {
           onClose={() => setLostModalLead(null)}
           onSubmit={handleLostSubmit}
           busy={submittingLost}
+        />
+      )}
+
+      {/* WhatsApp Live Chat Hub */}
+      {activeChatLead && (
+        <WhatsAppChatModal
+          isOpen={Boolean(activeChatLead)}
+          onClose={() => setActiveChatLead(null)}
+          initialLeadId={activeChatLead?.id}
         />
       )}
     </div>
