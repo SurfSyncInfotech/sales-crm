@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { companyPortalApi } from '../api/client';
+import { subscribeLiveSync } from '../services/liveSyncService';
 import { useAuth } from '../context/AuthContext';
 import {
   ShieldCheck,
@@ -407,7 +408,32 @@ export default function CompanyLeadsPage() {
       window.history.replaceState({}, '', window.location.pathname);
     }
 
-    return () => clearInterval(pollInterval);
+    function handleJarvisFilter(e) {
+      if (e.detail?.campaign !== undefined) {
+        setCampaignFilter(e.detail.campaign === 'all' ? '' : e.detail.campaign);
+      }
+      if (e.detail?.status !== undefined) {
+        setStatusFilter(e.detail.status === 'all' ? '' : e.detail.status);
+      }
+      if (e.detail?.search !== undefined) {
+        setSearch(e.detail.search);
+      }
+    }
+
+    function handleJarvisRefresh() {
+      if (loadLeadsRef.current) {
+        loadLeadsRef.current(pageRef.current, pageSizeRef.current).catch(() => {});
+      }
+    }
+
+    const unsubscribeSync = subscribeLiveSync(handleJarvisRefresh);
+    window.addEventListener('jarvis:filter', handleJarvisFilter);
+
+    return () => {
+      clearInterval(pollInterval);
+      unsubscribeSync();
+      window.removeEventListener('jarvis:filter', handleJarvisFilter);
+    };
   }, []);
 
   useEffect(() => {
@@ -1748,6 +1774,7 @@ export default function CompanyLeadsPage() {
             borderRadius: '12px',
             overflow: 'hidden',
             boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+            marginBottom: '3.5rem',
           }}>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '1000px' }}>

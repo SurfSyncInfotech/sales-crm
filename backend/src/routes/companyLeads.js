@@ -438,7 +438,7 @@ router.get('/campaigns', async (req, res) => {
 router.get('/export', async (req, res) => {
   try {
     const companyId = req.user.company_id;
-    const { source, status, q, campaign } = req.query;
+    const { source, status, q, campaign, format } = req.query;
 
     const where = ['l.company_id = ?'];
     const params = [companyId];
@@ -454,8 +454,25 @@ router.get('/export', async (req, res) => {
     }
 
     if (status) {
-      where.push('l.status = ?');
-      params.push(status);
+      const lower = String(status).toLowerCase().trim();
+      if (['new_pool', 'pool', 'unassigned', 'new'].includes(lower)) {
+        where.push('(l.status = "new" OR ((l.claimed_by IS NULL OR l.claimed_by = 0) AND (l.assigned_to IS NULL OR l.assigned_to = 0)))');
+      } else {
+        const statusMap = {
+          'intrested': 'interested',
+          'interest': 'interested',
+          'hot': 'interested',
+          'warm': 'contacted',
+          'cold': 'lost',
+          'contact': 'contacted',
+          'qualify': 'qualified',
+          'quote': 'quotation_sent',
+          'quotation': 'quotation_sent',
+        };
+        const cleanStatus = statusMap[lower] || status;
+        where.push('l.status = ?');
+        params.push(cleanStatus);
+      }
     }
 
     if (campaign && campaign !== 'all') {
@@ -540,10 +557,15 @@ router.get('/export', async (req, res) => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads');
 
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    const filename = `Leads_Export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const isCsv = String(format || '').toLowerCase() === 'csv';
+    const bookType = isCsv ? 'csv' : 'xlsx';
+    const ext = isCsv ? 'csv' : 'xlsx';
+    const mime = isCsv ? 'text/csv' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType });
+    const filename = `Leads_Export_${new Date().toISOString().slice(0, 10)}.${ext}`;
+
+    res.setHeader('Content-Type', mime);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.send(buffer);
   } catch (err) {
@@ -574,8 +596,25 @@ router.get('/', async (req, res) => {
     }
 
     if (status) {
-      where.push('l.status = ?');
-      params.push(status);
+      const lower = String(status).toLowerCase().trim();
+      if (['new_pool', 'pool', 'unassigned', 'new'].includes(lower)) {
+        where.push('(l.status = "new" OR ((l.claimed_by IS NULL OR l.claimed_by = 0) AND (l.assigned_to IS NULL OR l.assigned_to = 0)))');
+      } else {
+        const statusMap = {
+          'intrested': 'interested',
+          'interest': 'interested',
+          'hot': 'interested',
+          'warm': 'contacted',
+          'cold': 'lost',
+          'contact': 'contacted',
+          'qualify': 'qualified',
+          'quote': 'quotation_sent',
+          'quotation': 'quotation_sent',
+        };
+        const cleanStatus = statusMap[lower] || status;
+        where.push('l.status = ?');
+        params.push(cleanStatus);
+      }
     }
 
     if (campaign && campaign !== 'all') {
@@ -958,6 +997,7 @@ router.patch('/:id', async (req, res) => {
       campaign,
       lead_date,
       assigned_to,
+      claimed_by,
       tags,
       status,
       notes,
@@ -981,6 +1021,10 @@ router.patch('/:id', async (req, res) => {
     }
 
     const tagList = typeof tags === 'undefined' ? null : parseTags(tags);
+    const newAssignedTo = typeof assigned_to === 'undefined' ? existing.assigned_to : assigned_to || null;
+    const newClaimedBy = typeof claimed_by !== 'undefined'
+      ? (claimed_by || null)
+      : (assigned_to !== undefined && assigned_to ? Number(assigned_to) : existing.claimed_by);
 
     await pool.query(
       `UPDATE leads SET
@@ -993,8 +1037,10 @@ router.patch('/:id', async (req, res) => {
         campaign = COALESCE(?, campaign),
         lead_date = COALESCE(?, lead_date),
         assigned_to = ?,
+        claimed_by = ?,
+        claimed_at = CASE WHEN ? IS NOT NULL AND claimed_at IS NULL THEN NOW() ELSE claimed_at END,
         tags = COALESCE(?, tags),
-        status = COALESCE(?, status),
+        status = CASE WHEN ? IS NOT NULL AND status = 'new' AND ? IS NULL THEN 'claimed' ELSE COALESCE(?, status) END,
         notes = COALESCE(?, notes),
         deal_value = COALESCE(?, deal_value),
         quotation_pdf_url = COALESCE(?, quotation_pdf_url),
@@ -1011,8 +1057,12 @@ router.patch('/:id', async (req, res) => {
         sourceName,
         campaign ?? null,
         lead_date ? new Date(lead_date) : null,
-        typeof assigned_to === 'undefined' ? existing.assigned_to : assigned_to || null,
+        newAssignedTo,
+        newClaimedBy,
+        newClaimedBy,
         tagList ? JSON.stringify(tagList) : null,
+        newClaimedBy,
+        status ?? null,
         status ?? null,
         notes ?? null,
         deal_value !== undefined && deal_value !== null && deal_value !== '' ? Number(deal_value) : null,
@@ -1257,6 +1307,52 @@ router.post('/:id/send-demo-email', async (req, res) => {
   } catch (err) {
     console.error('Send demo email error:', err);
     res.status(500).json({ message: err.message || 'Failed to send demo email' });
+  }
+});
+
+router.post('/:id/send-email', async (req, res) => {
+  try {
+    const companyId = req.user.company_id;
+    const leadId = Number(req.params.id);
+    const { to, subject, body, pdfUrl, pdfFilename } = req.body || {};
+
+    const [existingRows] = await pool.query('SELECT * FROM leads WHERE id = ? AND company_id = ? LIMIT 1', [leadId, companyId]);
+    const lead = existingRows[0];
+    if (!lead) return res.status(404).json({ message: 'Lead not found' });
+
+    const recipient = (to || lead.email || '').trim();
+    if (!recipient) {
+      return res.status(400).json({ message: `No email address found for ${lead.name || 'this lead'}. Please specify an email address.` });
+    }
+    if (!subject || !subject.trim()) {
+      return res.status(400).json({ message: 'Email subject is required' });
+    }
+
+    await mailer.sendQuotationEmail({
+      to: recipient,
+      subject: subject.trim(),
+      body: body || '',
+      pdfUrl: pdfUrl || lead.quotation_pdf_url || null,
+      pdfFilename: pdfFilename || null,
+    });
+
+    if (recipient && !lead.email) {
+      await pool.query('UPDATE leads SET email = ?, updated_at = NOW() WHERE id = ? AND company_id = ?', [recipient, leadId, companyId]);
+    }
+
+    await logActivity({
+      companyId,
+      leadId,
+      type: 'email_sent',
+      summary: `Email sent to ${recipient} with subject "${subject.trim()}"`,
+      meta: { subject, to: recipient, hasAttachment: !!pdfUrl },
+      actorId: req.user.id,
+    });
+
+    res.json({ ok: true, message: `Email successfully sent to ${recipient}` });
+  } catch (err) {
+    console.error('Send direct email error:', err);
+    res.status(500).json({ message: err.message || 'Failed to send email' });
   }
 });
 

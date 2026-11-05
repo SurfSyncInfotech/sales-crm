@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { subscribeLiveSync } from '../services/liveSyncService';
 import {
   MessageSquareText,
   Search,
@@ -25,6 +26,7 @@ import {
 import { companyPortalApi } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import WhatsAppChatModal from '../components/WhatsAppChatModal';
+import CampaignFilterDropdown from '../components/CampaignFilterDropdown';
 
 function timeAgo(dateString) {
   if (!dateString) return '';
@@ -88,6 +90,8 @@ export default function CompanyFeedbackPage() {
   const [search, setSearch] = useState(urlSearch);
   const [stageFilter, setStageFilter] = useState('all');
   const [repFilter, setRepFilter] = useState('all');
+  const [campaignFilter, setCampaignFilter] = useState('all');
+  const [campaignsList, setCampaignsList] = useState([]);
   const [page, setPage] = useState(1);
   const [limit] = useState(50);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
@@ -108,11 +112,15 @@ export default function CompanyFeedbackPage() {
         q: search.trim(),
         stage: stageFilter !== 'all' ? stageFilter : undefined,
         rep_id: repFilter !== 'all' ? repFilter : undefined,
+        campaign: campaignFilter !== 'all' ? campaignFilter : undefined,
       });
       setFeedbacks(res.feedbacks || []);
       setPagination(res.pagination || { total: 0, totalPages: 1 });
       if (res.stats) setStats(res.stats);
       if (res.reps) setReps(res.reps);
+      if (res.campaigns && Array.isArray(res.campaigns)) {
+        setCampaignsList(res.campaigns);
+      }
     } catch (err) {
       console.error('Failed to load company feedbacks:', err);
       setError(err.message || 'Could not load feedback records');
@@ -121,9 +129,24 @@ export default function CompanyFeedbackPage() {
     }
   }
 
+  // Pre-load company campaigns list
+  useEffect(() => {
+    companyPortalApi.leadCampaigns?.()
+      ?.then((data) => {
+        if (data?.campaigns && Array.isArray(data.campaigns)) {
+          setCampaignsList(data.campaigns);
+        }
+      })
+      ?.catch(() => {});
+  }, []);
+
   useEffect(() => {
     loadFeedbacks();
-  }, [page, stageFilter, repFilter]);
+    const unsubscribe = subscribeLiveSync(() => {
+      loadFeedbacks();
+    });
+    return () => unsubscribe();
+  }, [page, stageFilter, repFilter, campaignFilter]);
 
   // Debounced search
   useEffect(() => {
@@ -133,6 +156,23 @@ export default function CompanyFeedbackPage() {
     }, 350);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // Collect all unique live campaigns dynamically
+  const dynamicCampaigns = useMemo(() => {
+    const set = new Set(campaignsList.filter(Boolean));
+    if (Array.isArray(feedbacks)) {
+      feedbacks.forEach((fb) => {
+        if (fb.campaign && String(fb.campaign).trim()) {
+          set.add(String(fb.campaign).trim());
+        }
+      });
+    }
+    const list = Array.from(set).sort();
+    if (!list.includes('Direct WhatsApp')) {
+      list.push('Direct WhatsApp');
+    }
+    return list;
+  }, [campaignsList, feedbacks]);
 
   // Group feedbacks by Lead into clean cards
   const groupedLeads = useMemo(() => {
@@ -154,6 +194,7 @@ export default function CompanyFeedbackPage() {
           lead_phone: fb.lead_phone || '',
           lead_email: fb.lead_email || '',
           lead_company: fb.lead_company || '',
+          campaign: fb.campaign || '',
           current_status: fb.current_lead_status || fb.to_status,
           feedbacks: [],
           latestFeedback: fb,
@@ -396,6 +437,19 @@ export default function CompanyFeedbackPage() {
             </button>
           )}
         </div>
+
+        {/* Dynamic Campaign Filter */}
+        <CampaignFilterDropdown
+          value={campaignFilter}
+          onChange={(newVal) => {
+            setCampaignFilter(newVal);
+            setPage(1);
+          }}
+          campaigns={dynamicCampaigns}
+          allLabel="All Campaigns"
+          allValue="all"
+          height="38px"
+        />
 
         {/* Rep Filter */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -664,7 +718,7 @@ export default function CompanyFeedbackPage() {
                           {group.feedbacks.length} {group.feedbacks.length === 1 ? 'Feedback' : 'Feedbacks'}
                         </span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '2px', fontSize: '12px', color: '#6B7280' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', fontSize: '12px', color: '#6B7280', flexWrap: 'wrap' }}>
                         {group.lead_phone && (
                           <span style={{ fontWeight: 600, color: '#374151' }}>
                             {group.lead_phone}
@@ -675,6 +729,24 @@ export default function CompanyFeedbackPage() {
                         )}
                         {group.lead_email && (
                           <span>• {group.lead_email}</span>
+                        )}
+                        {group.campaign && (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              color: group.campaign === 'Direct WhatsApp' ? '#047857' : '#0369A1',
+                              backgroundColor: group.campaign === 'Direct WhatsApp' ? '#ECFDF5' : '#F0F9FF',
+                              border: `1px solid ${group.campaign === 'Direct WhatsApp' ? '#A7F3D0' : '#BAE6FD'}`,
+                              borderRadius: '4px',
+                              padding: '1px 6px',
+                            }}
+                          >
+                            {group.campaign}
+                          </span>
                         )}
                       </div>
                     </div>

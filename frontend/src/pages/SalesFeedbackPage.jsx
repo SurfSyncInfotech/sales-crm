@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { salesApi } from '../api/client';
 import WhatsAppChatModal from '../components/WhatsAppChatModal';
+import CampaignFilterDropdown from '../components/CampaignFilterDropdown';
 
 function timeAgo(dateString) {
   if (!dateString) return '';
@@ -61,6 +62,7 @@ export default function SalesFeedbackPage() {
   // Filters & Pagination
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('all');
+  const [campaignFilter, setCampaignFilter] = useState('all');
   const [transferFilter, setTransferFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(15);
@@ -78,6 +80,7 @@ export default function SalesFeedbackPage() {
         limit,
         q: search.trim(),
         stage: stageFilter !== 'all' ? stageFilter : undefined,
+        campaign: campaignFilter !== 'all' ? campaignFilter : undefined,
       });
       setFeedbacks(res.feedbacks || []);
       setPagination(res.pagination || { total: 0, totalPages: 1 });
@@ -91,7 +94,7 @@ export default function SalesFeedbackPage() {
 
   useEffect(() => {
     loadFeedbacks();
-  }, [page, limit, stageFilter]);
+  }, [page, limit, stageFilter, campaignFilter]);
 
   // Debounced search
   useEffect(() => {
@@ -101,6 +104,22 @@ export default function SalesFeedbackPage() {
     }, 350);
     return () => clearTimeout(timer);
   }, [search]);
+
+  const dynamicCampaigns = React.useMemo(() => {
+    const set = new Set();
+    if (Array.isArray(feedbacks)) {
+      feedbacks.forEach((fb) => {
+        if (fb.campaign && String(fb.campaign).trim()) {
+          set.add(String(fb.campaign).trim());
+        }
+      });
+    }
+    const list = Array.from(set).sort();
+    if (!list.includes('Direct WhatsApp')) {
+      list.push('Direct WhatsApp');
+    }
+    return list;
+  }, [feedbacks]);
 
   const displayedFeedbacks = React.useMemo(() => {
     if (transferFilter === 'transferred') {
@@ -154,6 +173,18 @@ export default function SalesFeedbackPage() {
             }}
           />
         </div>
+
+        <CampaignFilterDropdown
+          value={campaignFilter}
+          onChange={(newVal) => {
+            setCampaignFilter(newVal);
+            setPage(1);
+          }}
+          campaigns={dynamicCampaigns}
+          allLabel="All Campaigns"
+          allValue="all"
+          height="32px"
+        />
 
         <select
           value={stageFilter}
@@ -240,6 +271,21 @@ export default function SalesFeedbackPage() {
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: '700', color: '#111827' }}>{fb.lead_name}</span>
+                        {fb.campaign && (
+                          <span
+                            style={{
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              color: fb.campaign === 'Direct WhatsApp' ? '#047857' : '#0369A1',
+                              backgroundColor: fb.campaign === 'Direct WhatsApp' ? '#ECFDF5' : '#F0F9FF',
+                              border: `1px solid ${fb.campaign === 'Direct WhatsApp' ? '#A7F3D0' : '#BAE6FD'}`,
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            {fb.campaign}
+                          </span>
+                        )}
                         {Boolean(fb.is_transferred) && (
                           <span
                             style={{

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { salesApi } from '../api/client';
+import { subscribeLiveSync } from '../services/liveSyncService';
 import { useAuth } from '../context/AuthContext';
 import QuotationRequestModal from '../components/QuotationRequestModal';
 import WonDealModal from '../components/WonDealModal';
@@ -158,12 +159,20 @@ export default function SalesPipelinePage() {
   useEffect(() => {
     loadPipeline();
 
+    // Universal cross-tab and live component sync
+    const unsubscribe = subscribeLiveSync(() => {
+      loadPipeline(true);
+    });
+
     // Background polling every 15 seconds
     const interval = setInterval(() => {
       loadPipeline(true);
     }, 15000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, []);
 
   async function handleClaim(leadId) {

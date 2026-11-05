@@ -1,6 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5010/api';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { authApi, clearToken, getToken, setToken, TOKEN_KEYS } from '../api/client';
+import { authApi, clearToken, getToken, setToken, TOKEN_KEYS, resolvePortal } from '../api/client';
 
 const AuthContext = createContext(null);
 
@@ -109,7 +109,9 @@ export function useAuth(portal) {
     throw new Error('useAuth must be used within AuthProvider');
   }
 
-  if (portal === 'sales') {
+  const activePortal = portal || resolvePortal();
+
+  if (activePortal === 'sales') {
     return {
       user: ctx.salesUser,
       loading: ctx.loading,
@@ -121,7 +123,7 @@ export function useAuth(portal) {
     };
   }
 
-  if (portal === 'company') {
+  if (activePortal === 'company') {
     return {
       user: ctx.companyUser,
       loading: ctx.loading,
@@ -134,7 +136,7 @@ export function useAuth(portal) {
     };
   }
 
-  if (portal === 'superadmin') {
+  if (activePortal === 'superadmin') {
     return {
       user: ctx.superadminUser,
       loading: ctx.loading,

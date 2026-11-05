@@ -23,6 +23,7 @@ import {
   Zap,
 } from 'lucide-react';
 import NotificationBell from './NotificationBell';
+import JarvisHUD from './JarvisHUD';
 
 const titles = {
   '': 'Admin Dashboard',
@@ -502,9 +503,12 @@ export default function CompanyLayout() {
         </header>
 
         {/* Workspace Body */}
-        <main style={{ flex: 1, padding: '1.5rem', boxSizing: 'border-box' }} className="company-main-container">
+        <main style={{ flex: 1, padding: '1.5rem 1.5rem 6.5rem 1.5rem', boxSizing: 'border-box' }} className="company-main-container">
           <Outlet />
         </main>
+
+        {/* Omnipresent J.A.R.V.I.S. Operations HUD */}
+        <JarvisHUD />
       </div>
 
       {/* Embedded CSS for responsive behavior and nav pills */}

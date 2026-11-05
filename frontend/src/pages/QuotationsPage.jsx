@@ -20,6 +20,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { companyPortalApi } from '../api/client';
+import { subscribeLiveSync } from '../services/liveSyncService';
 import AdminSendQuotationModal from '../components/AdminSendQuotationModal';
 import AdminProvideDemoModal from '../components/AdminProvideDemoModal';
 
@@ -57,6 +58,11 @@ export default function QuotationsPage() {
   useEffect(() => {
     loadData();
 
+    // Universal cross-tab and live component sync
+    const unsubscribe = subscribeLiveSync(() => {
+      loadData(true);
+    });
+
     // Background polling every 15 seconds
     const interval = setInterval(() => {
       // Pause polling if an admin modal is open
@@ -65,7 +71,10 @@ export default function QuotationsPage() {
       }
     }, 15000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [activeModalLead, activeDemoLead]);
 
   async function handleMarkSent(lead) {

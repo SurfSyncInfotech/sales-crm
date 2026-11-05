@@ -19,6 +19,7 @@ const companyWabaRoutes = require('./routes/companyWaba');
 const adminWabaRoutes = require('./routes/adminWaba');
 const notificationsRoutes = require('./routes/notifications');
 const demoRequestsRoutes = require('./routes/demoRequests');
+const companyJarvisRoutes = require('./routes/companyJarvis');
 const { ensureWabaSchema } = require('./migrate_waba');
 
 async function start() {
@@ -60,6 +61,7 @@ async function start() {
     { prefix: '/company/crm', handler: crmRoutes },
     { prefix: '/company/whatsapp', handler: companyWhatsappRoutes },
     { prefix: '/company/waba', handler: companyWabaRoutes },
+    { prefix: '/company/jarvis', handler: companyJarvisRoutes },
     { prefix: '/admin/waba', handler: adminWabaRoutes },
     { prefix: '/company', handler: companyPortalRoutes },
     { prefix: '/sales', handler: salesRoutes },

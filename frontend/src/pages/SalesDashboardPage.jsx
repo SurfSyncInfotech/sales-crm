@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { salesApi } from '../api/client';
+import { subscribeLiveSync } from '../services/liveSyncService';
 import { useAuth } from '../context/AuthContext';
 import {
   Users,
@@ -73,12 +74,20 @@ export default function SalesDashboardPage() {
   useEffect(() => {
     loadData();
 
+    // Universal live cross-tab & component sync
+    const unsubscribe = subscribeLiveSync(() => {
+      loadData(true);
+    });
+
     // Background polling every 15 seconds
     const interval = setInterval(() => {
       loadData(true);
     }, 15000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, []);
 
   async function handleClaim(leadId) {

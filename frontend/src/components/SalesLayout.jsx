@@ -16,6 +16,7 @@ import {
   ReceiptText,
 } from 'lucide-react';
 import NotificationBell from './NotificationBell';
+import JarvisHUD from './JarvisHUD';
 
 const links = [
   { to: '/sales', label: 'Dashboard', end: true, icon: <LayoutGrid size={18} /> },
@@ -389,9 +390,12 @@ export default function SalesLayout() {
         </header>
 
         {/* Workspace Body */}
-        <main style={{ flex: 1, padding: '1.5rem', boxSizing: 'border-box' }} className="sales-main-container">
+        <main style={{ flex: 1, padding: '1.5rem 1.5rem 6.5rem 1.5rem', boxSizing: 'border-box' }} className="sales-main-container">
           <Outlet />
         </main>
+
+        {/* Omnipresent J.A.R.V.I.S. Operations HUD */}
+        <JarvisHUD />
       </div>
 
       {/* Embedded CSS for responsive sidebar behavior and nav pills */}

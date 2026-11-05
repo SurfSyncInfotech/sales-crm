@@ -24,6 +24,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { subscribeLiveSync } from '../services/liveSyncService';
 
 const QUICK = [
   { to: '/company/leads', icon: Inbox, title: 'Lead Directory', text: 'Central lead pool & sources', color: '#0B6BE6', bg: '#EFF6FF' },
@@ -38,20 +39,25 @@ export default function CompanyDashboardPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    companyPortalApi
-      .dashboard()
-      .then(setData)
-      .catch((err) => setError(err.message));
-
-    // Background polling every 20 seconds
-    const interval = setInterval(() => {
+    const refreshDashboard = () => {
       companyPortalApi
         .dashboard()
         .then(setData)
-        .catch(() => { });
-    }, 20000);
+        .catch((err) => setError(err.message));
+    };
 
-    return () => clearInterval(interval);
+    refreshDashboard();
+
+    // Universal live cross-tab & component sync
+    const unsubscribe = subscribeLiveSync(refreshDashboard);
+
+    // Background polling every 20 seconds
+    const interval = setInterval(refreshDashboard, 20000);
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, []);
 
   if (error) {

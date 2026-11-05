@@ -806,7 +806,7 @@ router.get('/feedbacks', async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 20));
     const offset = (page - 1) * limit;
-    const { q, stage, rep_id, lead_id } = req.query;
+    const { q, stage, rep_id, lead_id, campaign } = req.query;
 
     let whereClause = 'WHERE lf.company_id = ?';
     const params = [companyId];
@@ -824,6 +824,15 @@ router.get('/feedbacks', async (req, res) => {
     if (stage && stage !== 'all') {
       whereClause += ' AND (lf.to_status = ? OR lf.from_status = ?)';
       params.push(stage, stage);
+    }
+
+    if (campaign && campaign !== 'all') {
+      if (campaign === 'Direct WhatsApp' || campaign === 'unassigned') {
+        whereClause += ' AND (l.campaign IS NULL OR TRIM(l.campaign) = "" OR l.campaign = "Direct WhatsApp")';
+      } else {
+        whereClause += ' AND l.campaign = ?';
+        params.push(campaign);
+      }
     }
 
     if (q && q.trim()) {
@@ -857,6 +866,7 @@ router.get('/feedbacks', async (req, res) => {
          l.phone AS lead_phone,
          l.email AS lead_email,
          l.lead_company,
+         l.campaign,
          l.status AS current_lead_status,
          u.name AS salesperson_name,
          u.email AS salesperson_email
@@ -887,6 +897,12 @@ router.get('/feedbacks', async (req, res) => {
       [companyId]
     );
 
+    // 5. Distinct campaigns list for filter dropdown
+    const [campRows] = await pool.query(
+      `SELECT DISTINCT TRIM(campaign) AS campaign FROM leads WHERE company_id = ? AND campaign IS NOT NULL AND TRIM(campaign) != '' ORDER BY campaign ASC`,
+      [companyId]
+    );
+
     res.json({
       feedbacks: rows,
       pagination: {
@@ -902,6 +918,7 @@ router.get('/feedbacks', async (req, res) => {
         lost: Number(statsRow?.lost_feedbacks || 0),
       },
       reps: reps || [],
+      campaigns: campRows.map((c) => c.campaign).filter(Boolean),
     });
   } catch (err) {
     console.error('Company feedbacks error:', err);

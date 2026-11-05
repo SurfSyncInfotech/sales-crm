@@ -783,6 +783,7 @@ export default function CompanyTeamPage() {
           borderRadius: '12px',
           overflow: 'hidden',
           boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+          marginBottom: '3.5rem',
         }}
       >
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
@@ -1150,7 +1151,7 @@ export default function CompanyTeamPage() {
       </div>
 
       {/* 5. Mobile & Tablet Card Layout (< 900px) */}
-      <div className="team-cards-mobile">
+      <div className="team-cards-mobile" style={{ marginBottom: '3.5rem' }}>
         {filteredTeam.map((member) => {
           const isAdmin = member.role === 'company_admin';
           const isSelf = member.id === user?.id;

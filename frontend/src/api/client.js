@@ -13,14 +13,29 @@ export function resolvePortal(explicit) {
   if (explicit === 'superadmin' || explicit === 'company' || explicit === 'sales') return explicit;
   if (typeof window === 'undefined') return 'superadmin';
   const path = window.location.pathname;
-  if (path.startsWith('/admin') || path === '/login') return 'superadmin';
+  if (path.startsWith('/admin') || path.startsWith('/superadmin') || path === '/login') return 'superadmin';
   if (path.startsWith('/sales')) return 'sales';
   if (path.startsWith('/company') || path.startsWith('/c/')) return 'company';
+  
+  // Dynamic company slug roots (e.g. /surfsync, /surfsync/pipeline, /surfsync/leads)
+  const firstSegment = path.split('/').filter(Boolean)[0] || '';
+  if (firstSegment && !['admin', 'superadmin', 'sales', 'login', 'capture'].includes(firstSegment)) {
+    return 'company';
+  }
+
   return 'superadmin';
 }
 
 export function getToken(portal) {
-  const target = portal ? (TOKEN_KEYS[portal] ? portal : resolvePortal(portal)) : resolvePortal();
+  const currentPortal = resolvePortal();
+  const target = portal ? (TOKEN_KEYS[portal] ? portal : resolvePortal(portal)) : currentPortal;
+  
+  // If the user is navigating inside the company portal, prioritize company admin credentials
+  if (currentPortal === 'company' && target === 'sales') {
+    const compToken = localStorage.getItem(TOKEN_KEYS.company);
+    if (compToken) return compToken;
+  }
+
   const key = TOKEN_KEYS[target];
   let token = key ? localStorage.getItem(key) : null;
   if (!token) {
@@ -236,8 +251,15 @@ export const companyPortalApi = {
       if (value !== undefined && value !== null && value !== '') qs.set(key, value);
     });
     const query = qs.toString();
-    return downloadFile(`/company/leads/export${query ? `?${query}` : ''}`, `Leads_Export_${new Date().toISOString().slice(0, 10)}.xlsx`, { portal: 'company' });
+    const ext = String(params.format || '').toLowerCase() === 'csv' ? 'csv' : 'xlsx';
+    return downloadFile(
+      `/company/leads/export${query ? `?${query}` : ''}`,
+      `Leads_Export_${new Date().toISOString().slice(0, 10)}.${ext}`,
+      { portal: 'company' }
+    );
   },
+  pipeline: (campaign) =>
+    api(`/sales/pipeline${campaign && campaign !== 'all' ? `?campaign=${encodeURIComponent(campaign)}` : ''}`, { portal: 'company' }),
   exportPipeline: (campaign) =>
     downloadFile(`/sales/pipeline/export${campaign && campaign !== 'all' ? `?campaign=${encodeURIComponent(campaign)}` : ''}`, `Pipeline_Export_${new Date().toISOString().slice(0, 10)}.xlsx`, { portal: 'company' }),
   createLead: (body) => api('/company/leads', { method: 'POST', body, portal: 'company' }),
@@ -267,6 +289,8 @@ export const companyPortalApi = {
     api(`/company/leads/${leadId}/send-quotation-email`, { method: 'POST', body, portal: 'company' }),
   sendDemoEmail: (leadId, body) =>
     api(`/company/leads/${leadId}/send-demo-email`, { method: 'POST', body, portal: 'company' }),
+  sendEmail: (leadId, body) =>
+    api(`/company/leads/${leadId}/send-email`, { method: 'POST', body, portal: 'company' }),
   tasks: () => api('/company/leads/tasks', { portal: 'company' }),
   completeTask: (id, body) => api(`/company/leads/tasks/${id}/complete`, { method: 'PATCH', body, portal: 'company' }),
   // WABA / WhatsApp Business API Suite

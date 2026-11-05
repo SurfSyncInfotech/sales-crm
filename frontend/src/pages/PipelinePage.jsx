@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { salesApi, companyPortalApi } from '../api/client';
+import { subscribeLiveSync } from '../services/liveSyncService';
 import QuotationRequestModal from '../components/QuotationRequestModal';
 import WonDealModal from '../components/WonDealModal';
 import LostDealModal from '../components/LostDealModal';
@@ -30,12 +31,14 @@ import {
   Sparkles,
   Calendar,
   Target,
+  Monitor,
 } from 'lucide-react';
 
 const STAGE_CONFIG = [
   { key: 'new_pool', title: 'New Leads (Pool)', icon: <Zap size={14} />, color: '#F68713', bg: '#FFF3E6', subtitle: 'Unassigned pool' },
   { key: 'claimed', title: 'Claimed', icon: <Phone size={14} />, color: '#F68713', bg: '#FFF3E6', subtitle: 'Claimed by rep' },
   { key: 'contacted', title: 'Contacted', icon: <Phone size={14} />, color: '#2A9CB8', bg: '#E8F6FA', subtitle: 'Initial call made' },
+  { key: 'demo_requested', title: 'Demo Requested', icon: <Monitor size={14} />, color: '#6366F1', bg: '#EEF2FF', subtitle: 'Product demo & specs' },
   { key: 'not_interested', title: 'Not Interested', icon: <Ban size={14} />, color: '#6B7280', bg: '#F3F4F6', subtitle: 'Disqualified / Dropped' },
   { key: 'interested', title: 'Interested', icon: <Star size={14} />, color: '#059669', bg: '#ECFDF5', subtitle: 'Auto-cadence on' },
   { key: 'followup', title: 'Follow-Up', icon: <RotateCw size={14} />, color: '#2563EB', bg: '#EFF6FF', subtitle: 'Active discussion' },
@@ -98,7 +101,7 @@ export default function PipelinePage() {
     setError('');
     try {
       const [pipeData, teamData, campData] = await Promise.all([
-        salesApi.pipeline(),
+        companyPortalApi.pipeline(),
         companyPortalApi.team().catch(() => ({ team: [] })),
         companyPortalApi.leadCampaigns().catch(() => ({ campaigns: [] })),
       ]);
@@ -117,6 +120,11 @@ export default function PipelinePage() {
   useEffect(() => {
     loadData();
 
+    // Universal cross-tab and live component sync
+    const unsubscribe = subscribeLiveSync(() => {
+      loadData(true);
+    });
+
     // Background polling every 15 seconds
     const interval = setInterval(() => {
       if (!quoteModalLead && !wonModalLead && !lostModalLead) {
@@ -124,7 +132,10 @@ export default function PipelinePage() {
       }
     }, 15000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [quoteModalLead, wonModalLead, lostModalLead]);
 
   async function handleClaim(leadId) {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { salesApi } from '../api/client';
+import { subscribeLiveSync } from '../services/liveSyncService';
 import { useAuth } from '../context/AuthContext';
 import QuotationRequestModal from '../components/QuotationRequestModal';
 import WonDealModal from '../components/WonDealModal';
@@ -158,12 +159,20 @@ export default function SalesLeadsPage() {
     setSelectedLeadIds([]);
     setActionMenuLeadId(null);
 
+    // Universal live cross-tab & component sync
+    const unsubscribe = subscribeLiveSync(() => {
+      loadData(true);
+    });
+
     // Background polling every 12 seconds
     const interval = setInterval(() => {
       loadData(true);
     }, 12000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [currentTab]);
 
   async function handleClaim(leadId) {
@@ -1077,7 +1086,7 @@ export default function SalesLeadsPage() {
       </div>
 
       {/* Pagination Footer */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', padding: '0.5rem 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', padding: '0.5rem 0', marginBottom: '3.5rem' }}>
         <div style={{ fontSize: '0.8rem', color: '#6B7280' }}>
           Showing <strong className="num" style={{ color: '#111827' }}>{filteredLeads.length ? (page - 1) * pageSize + 1 : 0}</strong> to{' '}
           <strong className="num" style={{ color: '#111827' }}>{Math.min(page * pageSize, filteredLeads.length)}</strong> of{' '}

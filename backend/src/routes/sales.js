@@ -197,7 +197,7 @@ router.get('/feedbacks', async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 15));
     const offset = (page - 1) * limit;
-    const { q, stage, lead_id } = req.query;
+    const { q, stage, lead_id, campaign } = req.query;
 
     let whereClause = 'WHERE lf.company_id = ?';
     const params = [companyId];
@@ -210,6 +210,15 @@ router.get('/feedbacks', async (req, res) => {
     if (stage && stage !== 'all') {
       whereClause += ' AND (lf.to_status = ? OR lf.from_status = ?)';
       params.push(stage, stage);
+    }
+
+    if (campaign && campaign !== 'all') {
+      if (campaign === 'Direct WhatsApp' || campaign === 'unassigned') {
+        whereClause += ' AND (l.campaign IS NULL OR TRIM(l.campaign) = "" OR l.campaign = "Direct WhatsApp")';
+      } else {
+        whereClause += ' AND l.campaign = ?';
+        params.push(campaign);
+      }
     }
 
     if (q && q.trim()) {
@@ -243,6 +252,7 @@ router.get('/feedbacks', async (req, res) => {
          l.phone AS lead_phone,
          l.email AS lead_email,
          l.lead_company,
+         l.campaign,
          l.status AS current_lead_status,
          l.is_transferred,
          l.transferred_from_name,
@@ -366,12 +376,18 @@ router.get('/pipeline/export', async (req, res) => {
     const companyId = req.user.company_id;
     const userId = req.user.id;
     const { campaign } = req.query;
+    const isAdmin =
+      req.user.role === 'company_admin' ||
+      req.user.role === 'superadmin' ||
+      String(req.user?.custom_role || '').trim().toLowerCase() === 'manager';
 
-    const whereClauses = [
-      'l.company_id = ?',
-      "(l.claimed_by IS NULL OR l.claimed_by = 0 OR l.claimed_by = ? OR ? = 'company_admin')",
-    ];
-    const params = [companyId, userId, req.user.role];
+    const whereClauses = ['l.company_id = ?'];
+    const params = [companyId];
+
+    if (!isAdmin) {
+      whereClauses.push('(l.claimed_by IS NULL OR l.claimed_by = 0 OR l.claimed_by = ? OR l.assigned_to = ?)');
+      params.push(userId, userId);
+    }
 
     if (campaign && campaign !== 'all') {
       if (campaign === 'Direct WhatsApp' || campaign === 'unassigned') {
@@ -489,12 +505,19 @@ router.get('/pipeline', async (req, res) => {
     const companyId = req.user.company_id;
     const userId = req.user.id;
     const { campaign } = req.query;
+    const isAdmin =
+      req.user.role === 'company_admin' ||
+      req.user.role === 'superadmin' ||
+      String(req.user?.custom_role || '').trim().toLowerCase() === 'manager';
 
-    const whereClauses = [
-      'l.company_id = ?',
-      "(l.claimed_by IS NULL OR l.claimed_by = 0 OR l.claimed_by = ? OR ? = 'company_admin')",
-    ];
-    const params = [userId, companyId, userId, req.user.role];
+    const whereClauses = ['l.company_id = ?'];
+    // Note: userId is passed first because (CASE WHEN ... l.claimed_by != ?) is in the SELECT clause
+    const params = [userId, companyId];
+
+    if (!isAdmin) {
+      whereClauses.push('(l.claimed_by IS NULL OR l.claimed_by = 0 OR l.claimed_by = ? OR l.assigned_to = ?)');
+      params.push(userId, userId);
+    }
 
     if (campaign && campaign !== 'all') {
       if (campaign === 'Direct WhatsApp' || campaign === 'unassigned') {
@@ -548,7 +571,8 @@ router.get('/pipeline', async (req, res) => {
 
     rows.forEach((lead) => {
       let stageKey = lead.status;
-      if (!lead.claimed_by || lead.claimed_by === 0) {
+      const effectiveOwner = lead.claimed_by || lead.assigned_to;
+      if (!effectiveOwner || effectiveOwner === 0) {
         stageKey = 'new_pool';
       } else if (stageKey === 'new' || stageKey === 'claimed') {
         stageKey = 'claimed';
